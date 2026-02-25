@@ -1,8 +1,9 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
-import { Activity, Globe, ShieldAlert, Cpu, Terminal, Zap, Crosshair, Radar as RadarIcon, Target } from 'lucide-react';
+import { Activity, Globe, Cpu, Terminal, Zap, Crosshair, Radar as RadarIcon, Target } from 'lucide-react';
 import { ComposableMap, Geographies, Geography, Marker } from "react-simple-maps";
 import { ResponsiveContainer, AreaChart, Area, Tooltip, RadarChart, PolarGrid, PolarAngleAxis, Radar, YAxis } from 'recharts';
+import Link from 'next/link';
 
 const geoUrl = "https://unpkg.com/world-atlas@2.0.2/countries-110m.json";
 
@@ -12,7 +13,7 @@ export default function Dashboard() {
   const [quakes, setQuakes] = useState<any[]>([]);
   const [cveLogs, setCveLogs] = useState<any[]>([]);
   const [sysTime, setSysTime] = useState('');
-  const [activeTarget, setActiveTarget] = useState<any>(null); // New Data Fusion State
+  const [activeTarget, setActiveTarget] = useState<any>(null); 
   
   const [threatMatrix, setThreatMatrix] = useState([
     { subject: 'DDoS', A: 120, fullMark: 150 },
@@ -26,7 +27,6 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchHeavyTelemetry = async () => {
       try {
-        // 1. FININT: BTC Chart Data
         const btcRes = await fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=25');
         const btcData = await btcRes.json();
         const formattedBtc = btcData.map((d: any) => ({
@@ -36,31 +36,25 @@ export default function Dashboard() {
         setBtcHistory(formattedBtc);
         setCurrentBtc(formattedBtc[formattedBtc.length - 1].price);
 
-        // 2. GEOINT: Global Kinetic Nodes
         const quakeRes = await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson');
         const quakeData = await quakeRes.json();
         setQuakes(quakeData.features.slice(0, 20));
 
-        // 3. SIGINT: Real-time CVE / Bug Bounty OSINT Feed
-        // Pulling the latest published vulnerability repositories
         const cveRes = await fetch('https://api.github.com/search/repositories?q=CVE-2025+OR+CVE-2026&sort=updated&order=desc&per_page=15');
         const cveData = await cveRes.json();
         if (cveData.items) {
           setCveLogs(cveData.items);
         }
-
       } catch (e) {
         console.error("Telemetry failure", e);
       }
     };
 
     fetchHeavyTelemetry();
-    // 15-second refresh to respect GitHub public API rate limits
     const macroInterval = setInterval(fetchHeavyTelemetry, 15000); 
 
     const microInterval = setInterval(() => {
       setSysTime(new Date().toISOString());
-      
       setThreatMatrix(prev => prev.map(t => ({
         ...t,
         A: Math.max(40, Math.min(140, t.A + (Math.random() * 10 - 5)))
@@ -76,17 +70,27 @@ export default function Dashboard() {
   return (
     <div className="h-screen w-screen p-2 md:p-4 flex flex-col gap-3 bg-[#020202] text-[#e5e5e5] font-mono overflow-hidden box-border select-none">
       
-      {/* COMMAND HEADER */}
+      {/* UPGRADED COMMAND HEADER WITH ROUTING */}
       <header className="flex-none flex justify-between items-end border-b border-[#333] pb-2">
         <div className="flex items-center gap-3">
           <Globe className="text-[#00ffcc] animate-pulse" size={24} />
           <div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-widest text-white uppercase text-shadow-glow">
+            <h1 className="text-xl md:text-2xl font-bold tracking-widest text-white uppercase text-shadow-glow flex items-center gap-4">
               OASIS // OMNI-NODE
+              {/* UPLINK TO RECON SUBSYSTEM */}
+              <Link href="/recon" className="hidden md:flex items-center gap-2 bg-[#ffaa00]/10 border border-[#ffaa00]/50 text-[#ffaa00] px-3 py-1 text-[10px] tracking-widest uppercase hover:bg-[#ffaa00] hover:text-black transition-all rounded-sm shadow-[0_0_10px_rgba(255,170,0,0.2)]">
+                <Terminal size={12} /> Launch Recon Node
+              </Link>
             </h1>
-            <div className="text-[9px] text-gray-500 tracking-[0.4em] uppercase">Distributed Intelligence Fusion Matrix</div>
+            <div className="text-[9px] text-gray-500 tracking-[0.4em] uppercase mt-1">Distributed Intelligence Fusion Matrix</div>
           </div>
         </div>
+        
+        {/* MOBILE UPLINK */}
+        <Link href="/recon" className="md:hidden flex items-center gap-1 bg-[#ffaa00]/10 border border-[#ffaa00]/50 text-[#ffaa00] px-2 py-1 text-[8px] tracking-widest uppercase hover:bg-[#ffaa00] hover:text-black transition-all">
+           <Terminal size={10} /> Recon
+        </Link>
+
         <div className="text-right hidden md:block">
           <div className="text-[10px] tracking-widest text-[#00ffcc]">SYS_CLOCK: {sysTime}</div>
           <div className="text-[9px] text-gray-500 tracking-widest">SAT_UPLINK: ACTIVE | ENCRYPTION: AES-256</div>
@@ -98,7 +102,6 @@ export default function Dashboard() {
         
         {/* LEFT FLANK: Threat Vectors & OSINT */}
         <div className="col-span-4 lg:col-span-3 flex flex-col gap-3 h-full min-h-0">
-          
           <div className="border border-[#222] bg-[#050505] p-2 relative flex-none h-[40%] flex flex-col">
             <div className="absolute top-0 left-0 w-full h-0.5 bg-[#ff3366]"></div>
             <h2 className="text-[#555] text-[10px] font-bold uppercase mb-1 flex items-center gap-2">
@@ -115,7 +118,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* REAL ZERO-DAY OSINT FEED */}
           <div className="border border-[#222] bg-[#050505] p-2 relative flex-grow flex flex-col min-h-0 overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-0.5 bg-[#ffaa00]"></div>
             <h2 className="text-[#555] text-[10px] font-bold uppercase mb-2 flex items-center gap-2 flex-none">
@@ -138,7 +140,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* CENTER COLUMN: Interactive GEOINT Map */}
+        {/* CENTER COLUMN: HIGH-VISIBILITY GEOINT MAP */}
         <div className="col-span-4 lg:col-span-6 border border-[#222] bg-[#030303] relative flex flex-col h-full min-h-0 overflow-hidden">
           <div className="absolute top-3 left-3 flex items-center gap-2 z-10">
             <Crosshair size={14} className="text-[#555]" />
@@ -153,10 +155,10 @@ export default function Dashboard() {
                     <Geography
                       key={geo.rsmKey}
                       geography={geo}
-                      fill="#0a0a0a"
-                      stroke="#222"
+                      fill="#1a1a1a"    /* UPGRADED VISIBILITY: Lighter Fill */
+                      stroke="#444444"  /* UPGRADED VISIBILITY: Brighter Borders */
                       strokeWidth={0.5}
-                      style={{ default: { outline: "none" }, hover: { fill: "#111", outline: "none" }, pressed: { outline: "none" } }}
+                      style={{ default: { outline: "none" }, hover: { fill: "#2a2a2a", outline: "none" }, pressed: { outline: "none" } }}
                     />
                   ))
                 }
@@ -189,8 +191,6 @@ export default function Dashboard() {
 
         {/* RIGHT FLANK: FININT & Target Telemetry */}
         <div className="col-span-4 lg:col-span-3 flex flex-col gap-3 h-full min-h-0">
-          
-          {/* Volatile Financial Chart Engine */}
           <div className="border border-[#222] bg-[#050505] p-2 relative flex-none h-[50%] flex flex-col">
             <div className="absolute top-0 left-0 w-full h-0.5 bg-[#00ffcc]"></div>
             <h2 className="text-[#555] text-[10px] font-bold uppercase mb-2 flex justify-between items-center">
@@ -207,7 +207,6 @@ export default function Dashboard() {
                     </linearGradient>
                   </defs>
                   <Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid #333', fontSize: '10px', color: '#fff' }} />
-                  {/* Dynamic Y-Axis Scaling for High Volatility */}
                   <YAxis type="number" domain={['dataMin', 'dataMax']} hide />
                   <Area type="monotone" dataKey="price" stroke="#00ffcc" strokeWidth={1.5} fillOpacity={1} fill="url(#colorPrice)" isAnimationActive={false} />
                 </AreaChart>
@@ -215,7 +214,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* DYNAMIC TARGET LOCK PANEL */}
           <div className="border border-[#222] bg-[#050505] p-3 relative flex-grow flex flex-col min-h-0 transition-all duration-300">
              <div className={`absolute top-0 left-0 w-full h-0.5 ${activeTarget ? 'bg-[#ff3366]' : 'bg-gray-600'}`}></div>
              <h2 className={`text-[10px] font-bold uppercase mb-4 flex items-center gap-2 ${activeTarget ? 'text-[#ff3366]' : 'text-[#555]'}`}>
@@ -252,7 +250,6 @@ export default function Dashboard() {
               </div>
             )}
           </div>
-
         </div>
       </div>
 
