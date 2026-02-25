@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
-import { Activity, Globe, ShieldAlert, Cpu, Terminal, Zap, Crosshair, Radar } from 'lucide-react';
+import { Activity, Globe, ShieldAlert, Cpu, Terminal, Zap, Crosshair, Radar as RadarIcon } from 'lucide-react';
 import { ComposableMap, Geographies, Geography, Marker } from "react-simple-maps";
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar as RadarGraph } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, Tooltip, RadarChart, PolarGrid, PolarAngleAxis, Radar } from 'recharts';
 
 const geoUrl = "https://unpkg.com/world-atlas@2.0.2/countries-110m.json";
 
@@ -66,7 +66,7 @@ export default function Dashboard() {
       })));
 
       // Generate Raw Terminal Logs
-      const ips = ["192.168.1.", "10.0.0.", "172.16.254.", "45.22.", "8.8.8."];
+      const ips = ["192.168.1.", "10.0.0.", "172.16.254.", "45.22.", "8.8.8.", "104.21.3."];
       const ports = ["443", "80", "22", "8080", "3389"];
       const actions = ["PACKET_INTERCEPT", "PORT_SCAN_DETECTED", "HANDSHAKE_FAIL", "AUTH_BYPASS_ATTEMPT"];
       const newLog = `[${new Date().toISOString().split('T')[1]}] ${actions[Math.floor(Math.random()*actions.length)]} -> ${ips[Math.floor(Math.random()*ips.length)]}${Math.floor(Math.random()*255)}:${ports[Math.floor(Math.random()*ports.length)]}`;
@@ -86,7 +86,7 @@ export default function Dashboard() {
       {/* COMMAND HEADER */}
       <header className="flex justify-between items-end border-b border-[#333] pb-2">
         <div className="flex items-center gap-3">
-          <Globe className="text-[#00ffcc] animate-spin-slow" size={24} />
+          <Globe className="text-[#00ffcc] animate-pulse" size={24} />
           <div>
             <h1 className="text-xl md:text-3xl font-bold tracking-widest text-white uppercase text-shadow-glow">
               OASIS // OMNI-NODE
@@ -109,7 +109,7 @@ export default function Dashboard() {
           <div className="border border-[#222] bg-[#050505] p-3 relative h-1/3 flex flex-col">
             <div className="absolute top-0 left-0 w-full h-0.5 bg-[#ff3366]"></div>
             <h2 className="text-[#555] text-[10px] font-bold uppercase mb-2 flex items-center gap-2">
-              <Radar size={12} className="text-[#ff3366]" /> Global Threat Matrix
+              <RadarIcon size={12} className="text-[#ff3366]" /> Global Threat Matrix
             </h2>
             <div className="flex-grow w-full h-full -ml-4">
               <ResponsiveContainer width="100%" height="100%">
@@ -150,8 +150,8 @@ export default function Dashboard() {
             <div className="text-[#ff3366]">CRITICAL: {quakes.filter(q => q.properties.mag > 4.5).length}</div>
           </div>
           
-          <div className="flex-grow flex items-center justify-center w-full h-full overflow-hidden">
-            <ComposableMap projectionConfig={{ scale: 160 }} className="w-full h-[120%] opacity-90">
+          <div className="flex-grow flex items-center justify-center w-full h-full overflow-hidden relative">
+            <ComposableMap projectionConfig={{ scale: 160 }} className="w-full h-[120%] opacity-90 absolute">
               <Geographies geography={geoUrl}>
                 {({ geographies }) =>
                   geographies.map((geo) => (
