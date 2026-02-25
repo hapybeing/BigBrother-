@@ -13,7 +13,6 @@ export default function Dashboard() {
   const [sysTime, setSysTime] = useState('');
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   
-  // Threat Matrix Data (Dynamic)
   const [threatMatrix, setThreatMatrix] = useState([
     { subject: 'DDoS', A: 120, fullMark: 150 },
     { subject: 'Malware', A: 98, fullMark: 150 },
@@ -23,27 +22,27 @@ export default function Dashboard() {
     { subject: 'Exfil', A: 65, fullMark: 150 },
   ]);
 
-  const terminalEndRef = useRef<HTMLDivElement>(null);
+  // NEW SCROLL LOGIC: Target the container itself, not the window.
+  const terminalContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Scroll terminal to bottom
-    terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (terminalContainerRef.current) {
+      terminalContainerRef.current.scrollTop = terminalContainerRef.current.scrollHeight;
+    }
   }, [terminalLogs]);
 
   useEffect(() => {
     const fetchHeavyTelemetry = async () => {
       try {
-        // 1. FININT: High-Resolution BTC Chart Data (Last 20 minutes)
         const btcRes = await fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=20');
         const btcData = await btcRes.json();
         const formattedBtc = btcData.map((d: any) => ({
           time: new Date(d[0]).toLocaleTimeString([], { hour12: false, minute: '2-digit', second:'2-digit' }),
-          price: parseFloat(d[4]) // Close price
+          price: parseFloat(d[4])
         }));
         setBtcHistory(formattedBtc);
         setCurrentBtc(formattedBtc[formattedBtc.length - 1].price);
 
-        // 2. GEOINT: Global Kinetic Nodes
         const quakeRes = await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson');
         const quakeData = await quakeRes.json();
         setQuakes(quakeData.features.slice(0, 20));
@@ -53,25 +52,22 @@ export default function Dashboard() {
     };
 
     fetchHeavyTelemetry();
-    const macroInterval = setInterval(fetchHeavyTelemetry, 10000); // 10s refresh for heavy APIs
+    const macroInterval = setInterval(fetchHeavyTelemetry, 10000);
 
-    // 3. SIGINT: High-Frequency Terminal Emulator & Radar Shifter
     const microInterval = setInterval(() => {
       setSysTime(new Date().toISOString());
       
-      // Shift Threat Matrix slightly to simulate live analysis
       setThreatMatrix(prev => prev.map(t => ({
         ...t,
         A: Math.max(40, Math.min(140, t.A + (Math.random() * 10 - 5)))
       })));
 
-      // Generate Raw Terminal Logs
       const ips = ["192.168.1.", "10.0.0.", "172.16.254.", "45.22.", "8.8.8.", "104.21.3."];
       const ports = ["443", "80", "22", "8080", "3389"];
       const actions = ["PACKET_INTERCEPT", "PORT_SCAN_DETECTED", "HANDSHAKE_FAIL", "AUTH_BYPASS_ATTEMPT"];
       const newLog = `[${new Date().toISOString().split('T')[1]}] ${actions[Math.floor(Math.random()*actions.length)]} -> ${ips[Math.floor(Math.random()*ips.length)]}${Math.floor(Math.random()*255)}:${ports[Math.floor(Math.random()*ports.length)]}`;
       
-      setTerminalLogs(prev => [...prev.slice(-40), newLog]); // Keep last 40 lines
+      setTerminalLogs(prev => [...prev.slice(-50), newLog]);
     }, 800);
 
     return () => {
@@ -81,17 +77,18 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <div className="min-h-screen p-2 md:p-4 flex flex-col gap-4 bg-[#020202] text-[#e5e5e5] font-mono overflow-hidden">
+    // STRICT VIEWPORT LOCK: h-screen and overflow-hidden prevent the page from moving.
+    <div className="h-screen w-screen p-2 md:p-4 flex flex-col gap-3 bg-[#020202] text-[#e5e5e5] font-mono overflow-hidden box-border">
       
       {/* COMMAND HEADER */}
-      <header className="flex justify-between items-end border-b border-[#333] pb-2">
+      <header className="flex-none flex justify-between items-end border-b border-[#333] pb-2">
         <div className="flex items-center gap-3">
           <Globe className="text-[#00ffcc] animate-pulse" size={24} />
           <div>
-            <h1 className="text-xl md:text-3xl font-bold tracking-widest text-white uppercase text-shadow-glow">
+            <h1 className="text-xl md:text-2xl font-bold tracking-widest text-white uppercase text-shadow-glow">
               OASIS // OMNI-NODE
             </h1>
-            <div className="text-[9px] md:text-xs text-gray-500 tracking-[0.4em] uppercase">Distributed Intelligence Fusion Matrix</div>
+            <div className="text-[9px] text-gray-500 tracking-[0.4em] uppercase">Distributed Intelligence Fusion Matrix</div>
           </div>
         </div>
         <div className="text-right hidden md:block">
@@ -100,58 +97,56 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* TACTICAL GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-grow max-h-[calc(100vh-80px)]">
+      {/* TACTICAL GRID: min-h-0 prevents flexbox blowout */}
+      <div className="grid grid-cols-12 gap-3 flex-grow min-h-0">
         
         {/* LEFT FLANK: SIGINT & Threat Vectors */}
-        <div className="lg:col-span-3 flex flex-col gap-4 h-full">
-          {/* Threat Radar */}
-          <div className="border border-[#222] bg-[#050505] p-3 relative h-1/3 flex flex-col">
+        <div className="col-span-4 lg:col-span-3 flex flex-col gap-3 h-full min-h-0">
+          
+          <div className="border border-[#222] bg-[#050505] p-2 relative flex-none h-[40%] flex flex-col">
             <div className="absolute top-0 left-0 w-full h-0.5 bg-[#ff3366]"></div>
-            <h2 className="text-[#555] text-[10px] font-bold uppercase mb-2 flex items-center gap-2">
+            <h2 className="text-[#555] text-[10px] font-bold uppercase mb-1 flex items-center gap-2">
               <RadarIcon size={12} className="text-[#ff3366]" /> Global Threat Matrix
             </h2>
             <div className="flex-grow w-full h-full -ml-4">
               <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={threatMatrix}>
+                <RadarChart cx="50%" cy="50%" outerRadius="65%" data={threatMatrix}>
                   <PolarGrid stroke="#222" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#666', fontSize: 9 }} />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#666', fontSize: 8 }} />
                   <Radar name="Threat Level" dataKey="A" stroke="#ff3366" fill="#ff3366" fillOpacity={0.3} />
                 </RadarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Raw Terminal Stream */}
-          <div className="border border-[#222] bg-[#050505] p-3 relative h-2/3 flex flex-col overflow-hidden">
+          <div className="border border-[#222] bg-[#050505] p-2 relative flex-grow flex flex-col min-h-0 overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-0.5 bg-[#00ffcc]"></div>
-            <h2 className="text-[#555] text-[10px] font-bold uppercase mb-2 flex items-center gap-2">
+            <h2 className="text-[#555] text-[10px] font-bold uppercase mb-2 flex items-center gap-2 flex-none">
               <Terminal size={12} className="text-[#00ffcc]" /> RAW_OSINT_STREAM
             </h2>
-            <div className="flex-grow overflow-y-auto text-[9px] text-[#00ffcc] opacity-80 leading-relaxed pr-2 custom-scrollbar font-mono tracking-tight">
+            {/* ISOLATED SCROLL CONTAINER */}
+            <div 
+              ref={terminalContainerRef}
+              className="flex-grow overflow-y-auto text-[9px] text-[#00ffcc] opacity-80 leading-relaxed pr-2 custom-scrollbar font-mono tracking-tight"
+            >
               {terminalLogs.map((log, i) => (
                 <div key={i} className={log.includes('FAIL') || log.includes('DETECTED') ? 'text-[#ff3366]' : ''}>
                   {log}
                 </div>
               ))}
-              <div ref={terminalEndRef} />
             </div>
           </div>
         </div>
 
         {/* CENTER COLUMN: GEOINT Map */}
-        <div className="lg:col-span-6 border border-[#222] bg-[#030303] relative flex flex-col h-full min-h-[400px]">
+        <div className="col-span-4 lg:col-span-6 border border-[#222] bg-[#030303] relative flex flex-col h-full min-h-0 overflow-hidden">
           <div className="absolute top-3 left-3 flex items-center gap-2 z-10">
             <Crosshair size={14} className="text-[#555]" />
             <span className="text-[10px] text-[#555] uppercase tracking-widest shadow-black drop-shadow-md">Kinetic Topography</span>
           </div>
-          <div className="absolute top-3 right-3 z-10 text-[9px] text-gray-600 text-right">
-            <div>ACTIVE NODES: {quakes.length}</div>
-            <div className="text-[#ff3366]">CRITICAL: {quakes.filter(q => q.properties.mag > 4.5).length}</div>
-          </div>
           
-          <div className="flex-grow flex items-center justify-center w-full h-full overflow-hidden relative">
-            <ComposableMap projectionConfig={{ scale: 160 }} className="w-full h-[120%] opacity-90 absolute">
+          <div className="flex-grow flex items-center justify-center w-full h-full relative mt-4">
+            <ComposableMap projectionConfig={{ scale: 140 }} className="w-full h-full opacity-90 absolute inset-0 m-auto">
               <Geographies geography={geoUrl}>
                 {({ geographies }) =>
                   geographies.map((geo) => (
@@ -174,15 +169,13 @@ export default function Dashboard() {
               ))}
             </ComposableMap>
           </div>
-          {/* Aesthetic Scanner Line */}
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[rgba(0,255,204,0.05)] to-transparent h-4 w-full animate-[scan_4s_linear_infinite] pointer-events-none border-b border-[#00ffcc]/20"></div>
         </div>
 
         {/* RIGHT FLANK: FININT & Asset Telemetry */}
-        <div className="lg:col-span-3 flex flex-col gap-4 h-full">
+        <div className="col-span-4 lg:col-span-3 flex flex-col gap-3 h-full min-h-0">
           
-          {/* Financial Chart Engine */}
-          <div className="border border-[#222] bg-[#050505] p-3 relative h-1/2 flex flex-col">
+          <div className="border border-[#222] bg-[#050505] p-2 relative flex-none h-[50%] flex flex-col">
             <div className="absolute top-0 left-0 w-full h-0.5 bg-[#00ffcc]"></div>
             <h2 className="text-[#555] text-[10px] font-bold uppercase mb-2 flex justify-between items-center">
               <span className="flex items-center gap-2"><Activity size={12} className="text-[#00ffcc]" /> FININT: BTC/USDT</span>
@@ -207,8 +200,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Node Status / Diagnostics */}
-          <div className="border border-[#222] bg-[#050505] p-3 relative h-1/2 flex flex-col">
+          <div className="border border-[#222] bg-[#050505] p-3 relative flex-grow flex flex-col min-h-0">
              <div className="absolute top-0 left-0 w-full h-0.5 bg-gray-600"></div>
              <h2 className="text-[#555] text-[10px] font-bold uppercase mb-4 flex items-center gap-2">
               <Cpu size={12} className="text-gray-500" /> System Diagnostics
@@ -232,7 +224,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Tailwind Custom Animation Injection */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes scan {
           0% { transform: translateY(-100%); }
