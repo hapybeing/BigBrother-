@@ -15,7 +15,8 @@
     "lucide-react": "^0.378.0",
     "framer-motion": "^11.1.7",
     "react-simple-maps": "^3.0.0",
-    "d3-geo": "^3.1.1"
+    "d3-geo": "^3.1.1",
+    "recharts": "^2.12.7"
   },
   "devDependencies": {
     "postcss": "^8",
