@@ -37,7 +37,6 @@ export default function NexusGraph() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // FIXED PHYSICS ENGINE
   useEffect(() => {
     if (fgRef.current) {
       fgRef.current.d3Force('charge').strength(-1000); 
@@ -55,11 +54,7 @@ export default function NexusGraph() {
     }, 100);
   };
 
-  // ==========================================
-  // PHASE 18: GLOBAL SYSTEM DATA FUSION
-  // ==========================================
   useEffect(() => {
-    // 1. Listen for Terminal Scans
     const handleCmdExec = (e: any) => {
       const { command, target: cmdTarget } = e.detail;
       if (command === 'scan' && cmdTarget) {
@@ -68,7 +63,6 @@ export default function NexusGraph() {
       }
     };
 
-    // 2. Listen for Subdomain Enumeration Data Dumps
     const handleDataSubs = (e: any) => {
       const { target: baseTarget, data } = e.detail;
       injectSubdomains(baseTarget, data);
@@ -83,7 +77,7 @@ export default function NexusGraph() {
     };
   }, []);
 
-  // INJECTION PROTOCOL: Takes raw terminal array and forces it into the graph
+  // FIXED PARSER: Now correctly splits by comma from the raw API data
   const injectSubdomains = (baseTarget: string, lines: string[]) => {
     setIsScanning(true);
     setGraphData(prev => {
@@ -96,7 +90,8 @@ export default function NexusGraph() {
       }
 
       lines.forEach(line => {
-        const parts = line.split('->').map(s => s.trim());
+        // Splitting by comma instead of arrow
+        const parts = line.split(',').map(s => s.trim());
         if (parts.length === 2) {
           const subHost = parts[0];
           const subIp = parts[1];
@@ -121,7 +116,6 @@ export default function NexusGraph() {
     detonatePhysics();
     setIsScanning(false);
   };
-  // ==========================================
 
   const buildLiveInfrastructureGraph = async (overrideTarget?: string) => {
     const activeTarget = overrideTarget || target;
@@ -357,7 +351,7 @@ export default function NexusGraph() {
             onNodeClick={handleNodeClick}
             backgroundColor="#020202"
             dagMode="radialout"
-            dagLevelDistance={80}
+            dagLevelDistance={100}
             d3AlphaDecay={0.02}
             d3VelocityDecay={0.3}
           />
