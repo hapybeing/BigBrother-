@@ -37,14 +37,100 @@ export default function NexusGraph() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const buildLiveInfrastructureGraph = async () => {
-    if (!target) return;
+  // FIXED PHYSICS ENGINE
+  useEffect(() => {
+    if (fgRef.current) {
+      fgRef.current.d3Force('charge').strength(-1000); 
+      fgRef.current.d3Force('link').distance(120);    
+    }
+  }, []);
+
+  const detonatePhysics = () => {
+    setTimeout(() => {
+      if (fgRef.current) {
+        fgRef.current.d3Force('charge').strength(-1200);
+        fgRef.current.d3Force('link').distance(150);
+        fgRef.current.d3ReheatSimulation();
+      }
+    }, 100);
+  };
+
+  // ==========================================
+  // PHASE 18: GLOBAL SYSTEM DATA FUSION
+  // ==========================================
+  useEffect(() => {
+    // 1. Listen for Terminal Scans
+    const handleCmdExec = (e: any) => {
+      const { command, target: cmdTarget } = e.detail;
+      if (command === 'scan' && cmdTarget) {
+        setTarget(cmdTarget);
+        buildLiveInfrastructureGraph(cmdTarget);
+      }
+    };
+
+    // 2. Listen for Subdomain Enumeration Data Dumps
+    const handleDataSubs = (e: any) => {
+      const { target: baseTarget, data } = e.detail;
+      injectSubdomains(baseTarget, data);
+    };
+
+    window.addEventListener('OVERWATCH_CMD_EXEC', handleCmdExec);
+    window.addEventListener('OVERWATCH_DATA_SUBS', handleDataSubs);
+
+    return () => {
+      window.removeEventListener('OVERWATCH_CMD_EXEC', handleCmdExec);
+      window.removeEventListener('OVERWATCH_DATA_SUBS', handleDataSubs);
+    };
+  }, []);
+
+  // INJECTION PROTOCOL: Takes raw terminal array and forces it into the graph
+  const injectSubdomains = (baseTarget: string, lines: string[]) => {
+    setIsScanning(true);
+    setGraphData(prev => {
+      let newNodes = [...prev.nodes];
+      let newLinks = [...prev.links];
+
+      const rootId = baseTarget.toLowerCase();
+      if (!newNodes.find(n => n.id === rootId)) {
+        newNodes.push({ id: rootId, name: rootId, type: 'ROOT_DOMAIN', group: 1, val: 20 });
+      }
+
+      lines.forEach(line => {
+        const parts = line.split('->').map(s => s.trim());
+        if (parts.length === 2) {
+          const subHost = parts[0];
+          const subIp = parts[1];
+
+          const subId = `SUB_${subHost}`;
+          if (!newNodes.find(n => n.id === subId)) {
+            newNodes.push({ id: subId, name: subHost, type: 'SUBDOMAIN', group: 8, val: 6 });
+            newLinks.push({ source: rootId, target: subId });
+          }
+
+          const ipId = `IP_${subIp}`;
+          if (!newNodes.find(n => n.id === ipId)) {
+            newNodes.push({ id: ipId, name: subIp, type: 'IPv4_HOST', group: 2, val: 8, expanded: false });
+          }
+          newLinks.push({ source: subId, target: ipId });
+        }
+      });
+
+      return { nodes: newNodes, links: newLinks };
+    });
+
+    detonatePhysics();
+    setIsScanning(false);
+  };
+  // ==========================================
+
+  const buildLiveInfrastructureGraph = async (overrideTarget?: string) => {
+    const activeTarget = overrideTarget || target;
+    if (!activeTarget) return;
     setIsScanning(true);
     setActiveNode(null);
     
-    const cleanTarget = target.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+    const cleanTarget = activeTarget.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
     
-    // Core Root Node
     let liveNodes: any[] = [{ id: cleanTarget, name: cleanTarget, type: 'ROOT_DOMAIN', group: 1, val: 20 }];
     let liveLinks: any[] = [];
 
@@ -102,9 +188,9 @@ export default function NexusGraph() {
       }
 
       setGraphData({ nodes: liveNodes, links: liveLinks });
-      if (fgRef.current) {
-        fgRef.current.zoomToFit(1000, 50);
-      }
+      if (fgRef.current) fgRef.current.zoomToFit(1000, 50);
+      detonatePhysics();
+
     } catch (error) {
       console.error("Ontology Construction Failed:", error);
     } finally {
@@ -112,27 +198,21 @@ export default function NexusGraph() {
     }
   };
 
-  // UPGRADED API & IMMUTABLE STATE INJECTION
   const executeDeepTraceAll = async () => {
     const unexpandedIPs = graphData.nodes.filter(n => n.type === 'IPv4_HOST' && !n.expanded);
     if (unexpandedIPs.length === 0) return;
 
     setIsExpanding(true);
-    
-    // Deep clone to guarantee React state updates
     let newNodes = graphData.nodes.map(n => ({...n}));
     let newLinks = graphData.links.map(l => ({...l}));
 
     try {
-      // Using geojs.io - No rate limits, pure speed
       const fetchPromises = unexpandedIPs.map(async (ipNode) => {
         try {
           const res = await fetch(`https://get.geojs.io/v1/ip/geo/${ipNode.name}.json`);
           const data = await res.json();
           return { node: ipNode, data };
-        } catch (e) {
-          return null;
-        }
+        } catch (e) { return null; }
       });
 
       const results = await Promise.all(fetchPromises);
@@ -145,7 +225,7 @@ export default function NexusGraph() {
         if (parentIdx > -1) newNodes[parentIdx].expanded = true;
 
         const orgName = data.organization_name || 'UNKNOWN_ISP';
-        const ispId = `ISP_${orgName}_${node.id}`; // Unique ID to prevent node merging
+        const ispId = `ISP_${orgName}_${node.id}`; 
         if (!newNodes.find(n => n.id === ispId)) {
           newNodes.push({ id: ispId, name: orgName.substring(0, 25), type: 'ISP_PROVIDER', group: 6, val: 7 });
         }
@@ -160,6 +240,7 @@ export default function NexusGraph() {
       });
 
       setGraphData({ nodes: newNodes, links: newLinks });
+      detonatePhysics();
 
     } catch (error) {
       console.error("Mass Forensics Failed", error);
@@ -185,6 +266,7 @@ export default function NexusGraph() {
       case 5: return '#555555'; // TXT/Sec (Gray)
       case 6: return '#ff00aa'; // ISP (Pink)
       case 7: return '#3388ff'; // Geo (Blue)
+      case 8: return '#ff00ff'; // Subdomain (Magenta)
       default: return '#ffffff';
     }
   };
@@ -198,6 +280,7 @@ export default function NexusGraph() {
       case 'SEC_POLICY': return <ShieldAlert size={14} className="text-gray-400" />;
       case 'ISP_PROVIDER': return <Share2 size={14} className="text-[#ff00aa]" />;
       case 'GEO_LOCATION': return <Crosshair size={14} className="text-[#3388ff]" />;
+      case 'SUBDOMAIN': return <Network size={14} className="text-[#ff00ff]" />;
       default: return <Share2 size={14} />;
     }
   };
@@ -234,7 +317,7 @@ export default function NexusGraph() {
             className="bg-transparent border-none text-[#ffaa00] text-xs font-bold tracking-widest focus:outline-none placeholder-gray-600 w-40 md:w-64"
           />
           <button 
-            onClick={buildLiveInfrastructureGraph}
+            onClick={() => buildLiveInfrastructureGraph()}
             disabled={isScanning || !target}
             className="bg-[#9933ff]/20 text-[#9933ff] px-3 py-1.5 text-[10px] tracking-widest uppercase hover:bg-[#9933ff] hover:text-white transition-all border border-[#9933ff]/50 disabled:opacity-50 flex items-center gap-2"
           >
@@ -243,7 +326,6 @@ export default function NexusGraph() {
         </div>
       </header>
 
-      {/* FIXED MASS TRACE BUTTON */}
       {graphData.nodes.length > 0 && graphData.nodes.some(n => n.type === 'IPv4_HOST' && !n.expanded) && (
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
           <button 
@@ -274,16 +356,15 @@ export default function NexusGraph() {
             linkDirectionalParticleSpeed={0.01}
             onNodeClick={handleNodeClick}
             backgroundColor="#020202"
-            
-            /* THE SECRET SAUCE: Radial DAG Mode forces Palantir-style concentric circles */
             dagMode="radialout"
             dagLevelDistance={80}
             d3AlphaDecay={0.02}
             d3VelocityDecay={0.3}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-[#333] tracking-[0.3em] text-xs uppercase text-center px-4">
-            AWAITING TARGET DESIGNATION<br/>(RECOMMENDED: FBI.GOV OR CLOUDFLARE.COM)
+          <div className="w-full h-full flex items-center justify-center text-[#333] tracking-[0.3em] text-xs uppercase text-center px-4 leading-loose">
+            AWAITING TARGET DESIGNATION<br/>
+            (RECOMMENDED: USE THE KERNEL TERMINAL <br/> AND TYPE <span className="text-[#00ffcc]">subs tesla.com</span>)
           </div>
         )}
       </div>
