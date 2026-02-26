@@ -1,83 +1,31 @@
 "use client";
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { ArrowLeft, Share2, ShieldAlert, Cpu, Activity, Fingerprint, Lock } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, Share2, Server, Globe, Mail, Network, ShieldAlert, Crosshair, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// CRITICAL: We must dynamically import the physics engine to bypass Server-Side Rendering (SSR)
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false });
 
-// Algorithmic Syndicate Generator (Generates a massive 80-node knowledge graph)
-const generateSyndicateGraph = () => {
-  const nodes: any[] = [];
-  const links: any[] = [];
-  
-  // Core Threat Actors (The Apex Nodes)
-  const actors = ['APT-29', 'LAZARUS_GRP', 'FIN7'];
-  actors.forEach((id, i) => nodes.push({ id, group: 1, name: `Threat Syndicate: ${id}`, val: 12, type: 'THREAT_ACTOR' }));
-
-  // Generate sub-nodes (Wallets, IPs, Exploits, Emails)
-  const types = [
-    { group: 2, type: 'C2_SERVER', prefix: 'IP:', val: 6 },
-    { group: 3, type: 'EXPLOIT', prefix: 'CVE-', val: 5 },
-    { group: 4, type: 'CRYPTO_WALLET', prefix: 'BTC:', val: 4 },
-    { group: 5, type: 'COMPROMISED_ID', prefix: 'USR:', val: 3 }
-  ];
-
-  let nodeId = 3;
-  actors.forEach(actor => {
-    // Each actor has 3-5 campaigns (C2 Servers)
-    const numC2 = Math.floor(Math.random() * 3) + 3;
-    for(let i=0; i<numC2; i++) {
-      const c2Id = `node_${nodeId++}`;
-      nodes.push({ id: c2Id, group: 2, name: `185.10.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}`, val: 6, type: 'C2_SERVER' });
-      links.push({ source: actor, target: c2Id });
-
-      // Each C2 Server connects to exploits, wallets, and victims
-      const numBranches = Math.floor(Math.random() * 6) + 4;
-      for(let j=0; j<numBranches; j++) {
-        const t = types[Math.floor(Math.random() * types.length)];
-        const branchId = `node_${nodeId++}`;
-        const nameVal = t.type === 'EXPLOIT' ? `2024-${Math.floor(Math.random()*9000)+1000}` : 
-                        t.type === 'CRYPTO_WALLET' ? `bc1q${Math.random().toString(36).substring(2, 8)}...` : 
-                        `target_${Math.floor(Math.random()*999)}@corp.com`;
-        
-        nodes.push({ id: branchId, group: t.group, name: `${t.prefix}${nameVal}`, val: t.val, type: t.type });
-        links.push({ source: c2Id, target: branchId });
-        
-        // Occasionally cross-link to build web density
-        if (Math.random() > 0.8 && nodes.length > 10) {
-          links.push({ source: branchId, target: nodes[Math.floor(Math.random() * (nodes.length - 1))].id });
-        }
-      }
-    }
-  });
-
-  return { nodes, links };
-};
-
 export default function NexusGraph() {
+  const [target, setTarget] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const [activeNode, setActiveNode] = useState<any>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [sysTime, setSysTime] = useState('');
+  
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>();
 
   useEffect(() => {
-    setGraphData(generateSyndicateGraph() as any);
     const clock = setInterval(() => setSysTime(new Date().toISOString()), 1000);
     return () => clearInterval(clock);
   }, []);
 
-  // Responsive canvas sizing
   useEffect(() => {
     if (containerRef.current) {
-      setDimensions({
-        width: containerRef.current.clientWidth,
-        height: containerRef.current.clientHeight
-      });
+      setDimensions({ width: containerRef.current.clientWidth, height: containerRef.current.clientHeight });
     }
     const handleResize = () => {
       if (containerRef.current) {
@@ -88,34 +36,114 @@ export default function NexusGraph() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const handleNodeClick = (node: any) => {
-    setActiveNode(node);
-    // Center physics engine on clicked node
-    if (fgRef.current) {
-      fgRef.current.centerAt(node.x, node.y, 1000);
-      fgRef.current.zoom(2.5, 1000);
+  // THE LIVE ONTOLOGY ENGINE
+  const buildLiveInfrastructureGraph = async () => {
+    if (!target) return;
+    setIsScanning(true);
+    setActiveNode(null);
+    setGraphData({ nodes: [], links: [] });
+
+    const cleanTarget = target.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+    
+    let liveNodes: any[] = [];
+    let liveLinks: any[] = [];
+
+    // 1. Set Root Node
+    liveNodes.push({ id: cleanTarget, name: cleanTarget, type: 'ROOT_DOMAIN', group: 1, val: 15 });
+
+    try {
+      // 2. Parallel Interrogation of Global DNS Registries
+      const [aRes, mxRes, nsRes, txtRes] = await Promise.all([
+        fetch(`https://dns.google/resolve?name=${cleanTarget}&type=A`).then(r => r.json()),
+        fetch(`https://dns.google/resolve?name=${cleanTarget}&type=MX`).then(r => r.json()),
+        fetch(`https://dns.google/resolve?name=${cleanTarget}&type=NS`).then(r => r.json()),
+        fetch(`https://dns.google/resolve?name=${cleanTarget}&type=TXT`).then(r => r.json()),
+      ]);
+
+      // 3. Data Fusion: Parsing and Linking IPv4 Hosts
+      if (aRes.Answer) {
+        aRes.Answer.forEach((record: any) => {
+          if (record.type === 1) { // A record
+            const ipId = `IP: ${record.data}`;
+            if (!liveNodes.find(n => n.id === ipId)) {
+              liveNodes.push({ id: ipId, name: record.data, type: 'IPv4_HOST', group: 2, val: 8 });
+              liveLinks.push({ source: cleanTarget, target: ipId });
+            }
+          }
+        });
+      }
+
+      // 4. Data Fusion: Mail Exchange Routing
+      if (mxRes.Answer) {
+        mxRes.Answer.forEach((record: any) => {
+          const mxData = record.data.split(' ')[1] || record.data; // Strip priority
+          const mxId = `MX: ${mxData}`;
+          if (!liveNodes.find(n => n.id === mxId)) {
+            liveNodes.push({ id: mxId, name: mxData, type: 'MAIL_SERVER', group: 3, val: 6 });
+            liveLinks.push({ source: cleanTarget, target: mxId });
+          }
+        });
+      }
+
+      // 5. Data Fusion: Name Server Architecture
+      if (nsRes.Answer) {
+        nsRes.Answer.forEach((record: any) => {
+          const nsId = `NS: ${record.data}`;
+          if (!liveNodes.find(n => n.id === nsId)) {
+            liveNodes.push({ id: nsId, name: record.data, type: 'NAME_SERVER', group: 4, val: 6 });
+            liveLinks.push({ source: cleanTarget, target: nsId });
+          }
+        });
+      }
+
+      // 6. Security/Verification Records (SPF/DMARC)
+      if (txtRes.Answer) {
+        txtRes.Answer.forEach((record: any) => {
+          if (record.data.includes('v=spf') || record.data.includes('v=DMARC')) {
+            const secId = `SEC: ${record.data.substring(0, 20)}...`;
+            if (!liveNodes.find(n => n.id === secId)) {
+               liveNodes.push({ id: secId, name: 'TXT Security Policy', type: 'SEC_POLICY', group: 5, val: 4, fullData: record.data });
+               liveLinks.push({ source: cleanTarget, target: secId });
+            }
+          }
+        });
+      }
+
+      setGraphData({ nodes: liveNodes, links: liveLinks });
+
+    } catch (error) {
+      console.error("Ontology Construction Failed:", error);
+    } finally {
+      setIsScanning(false);
     }
   };
 
-  // Node Styling Engine
+  const handleNodeClick = (node: any) => {
+    setActiveNode(node);
+    if (fgRef.current) {
+      fgRef.current.centerAt(node.x, node.y, 1000);
+      fgRef.current.zoom(3, 1000);
+    }
+  };
+
   const getNodeColor = (group: number) => {
     switch(group) {
-      case 1: return '#ff3366'; // Threat Actor (Red)
-      case 2: return '#ffaa00'; // Server (Orange)
-      case 3: return '#00ffcc'; // Exploit (Neon Green)
-      case 4: return '#9933ff'; // Wallet (Purple)
-      case 5: return '#555555'; // Identity (Gray)
+      case 1: return '#ffaa00'; // Root (Orange)
+      case 2: return '#00ffcc'; // IP (Neon Green)
+      case 3: return '#ff3366'; // MX (Red)
+      case 4: return '#9933ff'; // NS (Purple)
+      case 5: return '#555555'; // TXT/Sec (Gray)
       default: return '#ffffff';
     }
   };
 
   const getIconForType = (type: string) => {
     switch(type) {
-      case 'THREAT_ACTOR': return <ShieldAlert size={14} className="text-[#ff3366]" />;
-      case 'C2_SERVER': return <Cpu size={14} className="text-[#ffaa00]" />;
-      case 'EXPLOIT': return <Activity size={14} className="text-[#00ffcc]" />;
-      case 'CRYPTO_WALLET': return <Lock size={14} className="text-[#9933ff]" />;
-      case 'COMPROMISED_ID': return <Fingerprint size={14} className="text-gray-400" />;
+      case 'ROOT_DOMAIN': return <Globe size={14} className="text-[#ffaa00]" />;
+      case 'IPv4_HOST': return <Server size={14} className="text-[#00ffcc]" />;
+      case 'MAIL_SERVER': return <Mail size={14} className="text-[#ff3366]" />;
+      case 'NAME_SERVER': return <Network size={14} className="text-[#9933ff]" />;
+      case 'SEC_POLICY': return <ShieldAlert size={14} className="text-gray-400" />;
       default: return <Share2 size={14} />;
     }
   };
@@ -123,32 +151,46 @@ export default function NexusGraph() {
   return (
     <div className="h-screen w-screen bg-[#020202] text-[#e5e5e5] font-mono flex flex-col box-border overflow-hidden select-none relative">
       
-      {/* HUD HEADER */}
-      <header className="absolute top-0 left-0 w-full z-10 p-4 flex justify-between items-start pointer-events-none">
+      {/* COMMAND OVERLAY */}
+      <header className="absolute top-0 left-0 w-full z-10 p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pointer-events-none">
         <div className="flex flex-col gap-2 pointer-events-auto">
           <Link href="/" className="flex items-center gap-2 text-gray-500 hover:text-[#00ffcc] transition-colors w-max">
             <ArrowLeft size={16} /> <span className="text-[10px] tracking-widest uppercase">RETURN TO OMNI-NODE</span>
           </Link>
-          <div className="flex items-center gap-3 bg-black/50 border border-[#333] p-2 backdrop-blur-md">
+          <div className="flex items-center gap-3 bg-black/80 border border-[#333] p-2 backdrop-blur-md">
             <Share2 className="text-[#9933ff] animate-pulse" size={20} />
             <div>
               <h1 className="text-sm font-bold tracking-[0.3em] uppercase text-white shadow-[#9933ff] drop-shadow-md">
-                NEXUS // Link Analysis
+                NEXUS // Ontology Engine
               </h1>
-              <div className="text-[8px] text-gray-400 tracking-widest mt-0.5">FORCE-DIRECTED ENTITY GRAPH</div>
+              <div className="text-[8px] text-[#00ffcc] tracking-widest mt-0.5">LIVE INFRASTRUCTURE MAPPING</div>
             </div>
           </div>
         </div>
         
-        <div className="text-right bg-black/50 border border-[#333] p-2 backdrop-blur-md pointer-events-auto hidden md:block">
-          <div className="text-[10px] tracking-widest text-[#9933ff]">SYS_CLOCK: {sysTime}</div>
-          <div className="text-[8px] text-gray-500 tracking-widest mt-0.5">NODES: {graphData.nodes.length} | EDGES: {graphData.links.length}</div>
+        {/* LIVE TARGETING INPUT */}
+        <div className="flex items-center gap-2 bg-black/80 border border-[#333] p-2 backdrop-blur-md pointer-events-auto w-full md:w-auto">
+          <input 
+            type="text" 
+            placeholder="TARGET DOMAIN (e.g. mit.edu)"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            disabled={isScanning}
+            className="bg-transparent border-none text-[#ffaa00] text-xs font-bold tracking-widest focus:outline-none placeholder-gray-600 w-48 md:w-64"
+          />
+          <button 
+            onClick={buildLiveInfrastructureGraph}
+            disabled={isScanning || !target}
+            className="bg-[#9933ff]/20 text-[#9933ff] px-3 py-1 text-[10px] tracking-widest uppercase hover:bg-[#9933ff] hover:text-white transition-all border border-[#9933ff]/50 disabled:opacity-50 flex items-center gap-2"
+          >
+            {isScanning ? <><Loader2 size={12} className="animate-spin"/> TRACING...</> : <><Crosshair size={12}/> DEPLOY</>}
+          </button>
         </div>
       </header>
 
-      {/* THE PHYSICS ENGINE (CANVAS) */}
+      {/* THE PHYSICS ENGINE */}
       <div className="flex-grow w-full h-full cursor-crosshair" ref={containerRef}>
-        {graphData.nodes.length > 0 && (
+        {graphData.nodes.length > 0 ? (
           <ForceGraph2D
             ref={fgRef}
             width={dimensions.width}
@@ -156,20 +198,24 @@ export default function NexusGraph() {
             graphData={graphData}
             nodeLabel="name"
             nodeColor={(node: any) => getNodeColor(node.group)}
-            nodeRelSize={4}
-            linkColor={() => 'rgba(255,255,255,0.05)'}
-            linkWidth={1}
+            nodeRelSize={5}
+            linkColor={() => 'rgba(255,255,255,0.1)'}
+            linkWidth={1.5}
             linkDirectionalParticles={2}
-            linkDirectionalParticleWidth={1.5}
+            linkDirectionalParticleWidth={2}
             linkDirectionalParticleColor={() => '#00ffcc'}
-            linkDirectionalParticleSpeed={0.005}
+            linkDirectionalParticleSpeed={0.008}
             onNodeClick={handleNodeClick}
             backgroundColor="#020202"
           />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-[#333] tracking-[0.3em] text-xs uppercase">
+            AWAITING TARGET DESIGNATION FOR ONTOLOGY BUILD
+          </div>
         )}
       </div>
 
-      {/* TARGET DATA FUSION PANEL (SLIDES IN WHEN NODE IS CLICKED) */}
+      {/* ACTIVE TELEMETRY PANEL */}
       <AnimatePresence>
         {activeNode && (
           <motion.div 
@@ -177,11 +223,10 @@ export default function NexusGraph() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '100%', opacity: 0 }}
             transition={{ type: 'spring', damping: 20, stiffness: 100 }}
-            className="absolute top-20 right-4 w-72 bg-[#050505]/95 border border-[#333] backdrop-blur-md flex flex-col z-20 shadow-2xl"
+            className="absolute top-24 right-4 w-72 bg-[#050505]/95 border border-[#333] backdrop-blur-md flex flex-col z-20 shadow-2xl"
           >
             <div className="h-1 w-full" style={{ backgroundColor: getNodeColor(activeNode.group) }}></div>
             <div className="p-4 flex flex-col gap-4">
-              
               <div className="flex justify-between items-start">
                 <h2 className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-white">
                   {getIconForType(activeNode.type)} {activeNode.type.replace('_', ' ')}
@@ -189,42 +234,25 @@ export default function NexusGraph() {
                 <button onClick={() => setActiveNode(null)} className="text-gray-500 hover:text-white text-xs">✕</button>
               </div>
 
-              <div className="text-sm font-bold tracking-wider text-[#00ffcc] break-all border-b border-[#222] pb-3">
+              <div className="text-sm font-bold tracking-wider text-white break-all border-b border-[#222] pb-3" style={{ color: getNodeColor(activeNode.group) }}>
                 {activeNode.name}
               </div>
 
+              {activeNode.type === 'SEC_POLICY' && (
+                <div className="text-[8px] text-gray-400 font-mono break-all leading-tight bg-[#111] p-2 border border-[#222]">
+                  {activeNode.fullData}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-2 text-[9px] tracking-widest text-gray-400">
-                <div className="flex flex-col"><span className="text-[#555]">ENTITY_ID</span><span className="text-white truncate" title={activeNode.id}>{activeNode.id}</span></div>
-                <div className="flex flex-col"><span className="text-[#555]">WEIGHT</span><span className="text-white">{activeNode.val * 10} TB</span></div>
-                <div className="flex flex-col"><span className="text-[#555]">STATUS</span><span className="text-[#ff3366] animate-pulse">ACTIVE</span></div>
-                <div className="flex flex-col"><span className="text-[#555]">RISK_SCORE</span><span className="text-white">CRITICAL</span></div>
+                <div className="flex flex-col"><span className="text-[#555]">NODE_CLASS</span><span className="text-white">PUBLIC_INFRA</span></div>
+                <div className="flex flex-col"><span className="text-[#555]">STATUS</span><span className="text-[#00ffcc] animate-pulse">RESOLVED</span></div>
               </div>
-
-              <div className="mt-2 space-y-1">
-                <div className="text-[8px] text-[#555] uppercase tracking-widest mb-1">Known Associations</div>
-                {graphData.links
-                  .filter((l: any) => (l.source.id || l.source) === activeNode.id || (l.target.id || l.target) === activeNode.id)
-                  .slice(0, 5)
-                  .map((link: any, idx) => {
-                    const relatedNodeId = (link.source.id || link.source) === activeNode.id ? (link.target.id || link.target) : (link.source.id || link.source);
-                    return (
-                      <div key={idx} className="text-[8px] text-gray-400 border-l-2 border-[#333] pl-2 py-0.5 truncate">
-                        {relatedNodeId}
-                      </div>
-                    );
-                  })}
-              </div>
-
-              <button className="w-full mt-2 bg-[#ffaa00]/10 border border-[#ffaa00]/50 text-[#ffaa00] py-2 text-[8px] tracking-[0.3em] uppercase hover:bg-[#ffaa00] hover:text-black transition-all">
-                Extract Telemetry
-              </button>
-
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Subtle Grid Overlay */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
     </div>
   );
