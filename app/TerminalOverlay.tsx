@@ -7,8 +7,8 @@ export default function TerminalOverlay() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<{ type: 'cmd' | 'out' | 'err' | 'sys' | 'warn', text: string }[]>([
-    { type: 'sys', text: 'OVERWATCH KERNEL v1.3 ONLINE.' },
-    { type: 'sys', text: 'SHODAN VULNERABILITY DATABASE UPLINK: ACTIVE.' },
+    { type: 'sys', text: 'OVERWATCH KERNEL v1.4 ONLINE.' },
+    { type: 'sys', text: 'SUBDOMAIN ENUMERATION UPLINK: ACTIVE.' },
     { type: 'sys', text: 'TYPE "help" FOR PROTOCOLS.' }
   ]);
   
@@ -37,8 +37,9 @@ export default function TerminalOverlay() {
         case 'help':
           setHistory(prev => [...prev, 
             { type: 'out', text: 'AVAILABLE PROTOCOLS:' },
-            { type: 'out', text: '  scan [target]            - [MACRO] Auto-resolve & trace (Accepts IP or Domain)' },
-            { type: 'out', text: '  intel [ip]               - [SHODAN] Interrogate open ports & active CVE vulnerabilities' },
+            { type: 'out', text: '  subs [domain]            - [NEW] Enumerate hidden subdomains & internal IPs' },
+            { type: 'out', text: '  scan [target]            - Auto-resolve & trace (Accepts IP or Domain)' },
+            { type: 'out', text: '  intel [ip]               - Interrogate open ports & active CVE vulnerabilities' },
             { type: 'out', text: '  whois [ip] / who is [ip] - Instant OSINT geolocation trace' },
             { type: 'out', text: '  ping [domain]            - Resolve domain to IPv4' },
             { type: 'out', text: '  price [pair]             - Live asset telemetry (e.g. price BTCUSDT)' },
@@ -55,7 +56,36 @@ export default function TerminalOverlay() {
           setIsOpen(false);
           break;
 
-        // THE NEW SHODAN VULNERABILITY SCANNER
+        // THE NEW SUBDOMAIN ENUMERATION ENGINE
+        case 'subs':
+          if (!targetArg) throw new Error("REQUIRES DOMAIN (e.g., subs tesla.com)");
+          setHistory(prev => [...prev, { type: 'sys', text: `INITIATING SUBDOMAIN ENUMERATION FOR [${targetArg.toUpperCase()}]...` }]);
+          
+          try {
+            const subRes = await fetch(`https://api.hackertarget.com/hostsearch/?q=${targetArg}`);
+            if (!subRes.ok) throw new Error("API REJECTED REQUEST. RATE LIMIT EXCEEDED.");
+            
+            const subText = await subRes.text();
+            if (subText.includes('error')) throw new Error("NO RECORDS FOUND OR API BLOCKED.");
+            
+            const lines = subText.split('\n').filter(l => l.trim() !== '');
+            setHistory(prev => [...prev, { type: 'out', text: `[+] DISCOVERED ${lines.length} SUBDOMAINS/HOSTS:` }]);
+            
+            // Limit output to prevent terminal crashing from massive domains
+            const displayLines = lines.slice(0, 15);
+            displayLines.forEach(line => {
+              const [host, ip] = line.split(',');
+              setHistory(prev => [...prev, { type: 'out', text: `    ${host} -> ${ip}` }]);
+            });
+            
+            if (lines.length > 15) {
+              setHistory(prev => [...prev, { type: 'warn', text: `    ...AND ${lines.length - 15} MORE HIDDEN HOSTS. LIMITING OUTPUT.` }]);
+            }
+          } catch (e: any) {
+             setHistory(prev => [...prev, { type: 'err', text: `[!] ENUMERATION FAILED: ${e.message}` }]);
+          }
+          break;
+
         case 'intel':
           if (!targetArg || !/^(\d{1,3}\.){3}\d{1,3}$/.test(targetArg)) {
             throw new Error("REQUIRES VALID IPv4 ADDRESS (e.g., intel 8.8.8.8)");
@@ -114,7 +144,6 @@ export default function TerminalOverlay() {
           });
           break;
 
-        // POLYMORPHIC MACRO
         case 'scan':
           if (!targetArg) throw new Error("REQUIRES TARGET (e.g., scan fbi.gov OR scan 8.8.8.8)");
           setHistory(prev => [...prev, { type: 'sys', text: `INITIATING AUTOMATED RECON MACRO ON [${targetArg.toUpperCase()}]...` }]);
@@ -203,7 +232,7 @@ export default function TerminalOverlay() {
           >
             <div className="flex justify-between items-center bg-[#111] border-b border-[#222] px-4 py-2">
               <div className="flex items-center gap-2 text-[#00ffcc] text-[10px] tracking-widest font-bold">
-                <TerminalIcon size={12} /> OVERWATCH KERNEL v1.3
+                <TerminalIcon size={12} /> OVERWATCH KERNEL v1.4
               </div>
               <button onClick={() => setIsOpen(false)} className="text-gray-500 hover:text-[#ff3366] transition-colors">
                 <X size={16} />
