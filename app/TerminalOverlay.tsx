@@ -1,14 +1,15 @@
 "use client";
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Terminal as TerminalIcon, X, ChevronRight } from 'lucide-react';
+import { Terminal as TerminalIcon, X, ChevronRight, AlertTriangle } from 'lucide-react';
 
 export default function TerminalOverlay() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
-  const [history, setHistory] = useState<{ type: 'cmd' | 'out' | 'err' | 'sys', text: string }[]>([
-    { type: 'sys', text: 'OVERWATCH KERNEL v1.2 ONLINE.' },
-    { type: 'sys', text: 'MACRO CAPABILITIES ENABLED. TYPE "help" FOR PROTOCOLS.' }
+  const [history, setHistory] = useState<{ type: 'cmd' | 'out' | 'err' | 'sys' | 'warn', text: string }[]>([
+    { type: 'sys', text: 'OVERWATCH KERNEL v1.3 ONLINE.' },
+    { type: 'sys', text: 'SHODAN VULNERABILITY DATABASE UPLINK: ACTIVE.' },
+    { type: 'sys', text: 'TYPE "help" FOR PROTOCOLS.' }
   ]);
   
   const endOfTerminalRef = useRef<HTMLDivElement>(null);
@@ -36,7 +37,8 @@ export default function TerminalOverlay() {
         case 'help':
           setHistory(prev => [...prev, 
             { type: 'out', text: 'AVAILABLE PROTOCOLS:' },
-            { type: 'out', text: '  scan [domain]            - [MACRO] Auto-resolve & deep trace all hosts' },
+            { type: 'out', text: '  scan [target]            - [MACRO] Auto-resolve & trace (Accepts IP or Domain)' },
+            { type: 'out', text: '  intel [ip]               - [SHODAN] Interrogate open ports & active CVE vulnerabilities' },
             { type: 'out', text: '  whois [ip] / who is [ip] - Instant OSINT geolocation trace' },
             { type: 'out', text: '  ping [domain]            - Resolve domain to IPv4' },
             { type: 'out', text: '  price [pair]             - Live asset telemetry (e.g. price BTCUSDT)' },
@@ -51,6 +53,39 @@ export default function TerminalOverlay() {
 
         case 'exit':
           setIsOpen(false);
+          break;
+
+        // THE NEW SHODAN VULNERABILITY SCANNER
+        case 'intel':
+          if (!targetArg || !/^(\d{1,3}\.){3}\d{1,3}$/.test(targetArg)) {
+            throw new Error("REQUIRES VALID IPv4 ADDRESS (e.g., intel 8.8.8.8)");
+          }
+          setHistory(prev => [...prev, { type: 'sys', text: `INTERROGATING SHODAN INTERNET_DB FOR [${targetArg}]...` }]);
+          
+          try {
+            const shodanRes = await fetch(`https://internetdb.shodan.io/${targetArg}`);
+            if (!shodanRes.ok) {
+              if (shodanRes.status === 404) throw new Error("TARGET NOT INDEXED IN SHODAN DATABASE. NO OPEN PORTS DETECTED.");
+              throw new Error("SHODAN API CONNECTION FAILED.");
+            }
+            const shodanData = await shodanRes.json();
+            
+            setHistory(prev => [...prev, 
+              { type: 'out', text: `[HOSTNAMES]: ${shodanData.hostnames?.length > 0 ? shodanData.hostnames.join(', ') : 'NONE IDENTIFIED'}` },
+              { type: 'out', text: `[OPEN PORTS]: ${shodanData.ports?.length > 0 ? shodanData.ports.join(', ') : 'NONE OPEN'}` },
+              { type: 'out', text: `[CPE / TECH STACK]: ${shodanData.cpes?.length > 0 ? shodanData.cpes.slice(0, 5).join(', ') : 'UNKNOWN'}` }
+            ]);
+
+            if (shodanData.vulns && shodanData.vulns.length > 0) {
+              setHistory(prev => [...prev, { type: 'warn', text: `[!] CRITICAL: ${shodanData.vulns.length} VULNERABILITIES (CVEs) DETECTED:` }]);
+              setHistory(prev => [...prev, { type: 'err', text: `    ${shodanData.vulns.slice(0, 5).join(', ')}${shodanData.vulns.length > 5 ? ' ...AND MORE' : ''}` }]);
+            } else {
+              setHistory(prev => [...prev, { type: 'out', text: `[VULNERABILITIES]: NO KNOWN EXPLOITS DETECTED.` }]);
+            }
+
+          } catch (e: any) {
+             setHistory(prev => [...prev, { type: 'err', text: `[!] ${e.message}` }]);
+          }
           break;
 
         case 'whois':
@@ -79,23 +114,30 @@ export default function TerminalOverlay() {
           });
           break;
 
-        // THE NEW AUTOMATED RECON MACRO
+        // POLYMORPHIC MACRO
         case 'scan':
-          if (!targetArg) throw new Error("REQUIRES DOMAIN (e.g., scan cloudflare.com)");
+          if (!targetArg) throw new Error("REQUIRES TARGET (e.g., scan fbi.gov OR scan 8.8.8.8)");
           setHistory(prev => [...prev, { type: 'sys', text: `INITIATING AUTOMATED RECON MACRO ON [${targetArg.toUpperCase()}]...` }]);
 
-          // Step 1: Resolve IPs
-          const scanDnsRes = await fetch(`https://dns.google/resolve?name=${targetArg}&type=A`);
-          const scanDnsData = await scanDnsRes.json();
-          if (!scanDnsData.Answer) throw new Error("TARGET UNREACHABLE. NO IPv4 RECORDS FOUND.");
+          const isIpAddress = /^(\d{1,3}\.){3}\d{1,3}$/.test(targetArg);
+          let ipsToScan: string[] = [];
 
-          const ips = scanDnsData.Answer.filter((a: any) => a.type === 1).map((a: any) => a.data);
-          setHistory(prev => [...prev, { type: 'out', text: `[+] RESOLVED ${ips.length} EXPOSED HOST(S). COMMENCING DEEP TRACE...` }]);
+          if (isIpAddress) {
+            setHistory(prev => [...prev, { type: 'out', text: `[+] DIRECT IP DETECTED. BYPASSING DNS RESOLUTION...` }]);
+            ipsToScan = [targetArg];
+          } else {
+            setHistory(prev => [...prev, { type: 'out', text: `[+] DOMAIN DETECTED. QUERYING DNS RECORDS...` }]);
+            const scanDnsRes = await fetch(`https://dns.google/resolve?name=${targetArg}&type=A`);
+            const scanDnsData = await scanDnsRes.json();
+            if (!scanDnsData.Answer) throw new Error("TARGET UNREACHABLE. NO IPv4 RECORDS FOUND.");
 
-          // Step 2: Iterate and Trace each IP sequentially
-          for (let i = 0; i < ips.length; i++) {
-            const ip = ips[i];
-            setHistory(prev => [...prev, { type: 'sys', text: `\n--> TRACING HOST ${i + 1}/${ips.length}: [${ip}]` }]);
+            ipsToScan = scanDnsData.Answer.filter((a: any) => a.type === 1).map((a: any) => a.data);
+            setHistory(prev => [...prev, { type: 'out', text: `[+] RESOLVED ${ipsToScan.length} EXPOSED HOST(S). COMMENCING DEEP TRACE...` }]);
+          }
+
+          for (let i = 0; i < ipsToScan.length; i++) {
+            const ip = ipsToScan[i];
+            setHistory(prev => [...prev, { type: 'sys', text: `\n--> TRACING HOST ${i + 1}/${ipsToScan.length}: [${ip}]` }]);
             
             try {
               const scanWhoRes = await fetch(`https://get.geojs.io/v1/ip/geo/${ip}.json`);
@@ -111,9 +153,7 @@ export default function TerminalOverlay() {
             } catch (e) {
               setHistory(prev => [...prev, { type: 'err', text: `    [!] TRACE ERROR FOR ${ip}` }]);
             }
-            
-            // 400ms delay to simulate processing and protect the API from rate limits
-            await new Promise(resolve => setTimeout(resolve, 400));
+            await new Promise(resolve => setTimeout(resolve, 300));
           }
           
           setHistory(prev => [...prev, { type: 'sys', text: `\n[=== MACRO COMPLETE. TARGET PROFILED ===]` }]);
@@ -163,7 +203,7 @@ export default function TerminalOverlay() {
           >
             <div className="flex justify-between items-center bg-[#111] border-b border-[#222] px-4 py-2">
               <div className="flex items-center gap-2 text-[#00ffcc] text-[10px] tracking-widest font-bold">
-                <TerminalIcon size={12} /> OVERWATCH KERNEL v1.2
+                <TerminalIcon size={12} /> OVERWATCH KERNEL v1.3
               </div>
               <button onClick={() => setIsOpen(false)} className="text-gray-500 hover:text-[#ff3366] transition-colors">
                 <X size={16} />
@@ -175,10 +215,12 @@ export default function TerminalOverlay() {
                 <div key={i} className={`
                   ${line.type === 'cmd' ? 'text-white font-bold mt-2' : ''}
                   ${line.type === 'out' ? 'text-gray-400 pl-4' : ''}
-                  ${line.type === 'sys' ? 'text-[#ffaa00]' : ''}
+                  ${line.type === 'sys' ? 'text-[#00ffcc]' : ''}
+                  ${line.type === 'warn' ? 'text-[#ffaa00] font-bold' : ''}
                   ${line.type === 'err' ? 'text-[#ff3366]' : ''}
                   whitespace-pre-wrap
                 `}>
+                  {line.type === 'warn' && <AlertTriangle size={12} className="inline mr-1 mb-0.5" />}
                   {line.text}
                 </div>
               ))}
