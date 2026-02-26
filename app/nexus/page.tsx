@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, Share2, Server, Globe, Mail, Network, ShieldAlert, Crosshair, Loader2, Zap } from 'lucide-react';
+import { ArrowLeft, Share2, Server, Globe, Mail, Network, ShieldAlert, Crosshair, Loader2, Zap, Radar } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -37,11 +37,12 @@ export default function NexusGraph() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // PHYSICS ENGINE TWEAKS: Repel nodes to create a sprawling web
+  // VIOLENT PHYSICS OVERRIDE: Forces the graph to explode into a massive web
   useEffect(() => {
     if (fgRef.current) {
-      fgRef.current.d3Force('charge').strength(-400); // Stronger repulsion
-      fgRef.current.d3Force('link').distance(60);     // Longer links
+      fgRef.current.d3Force('charge').strength(-1200); // Massive repulsion
+      fgRef.current.d3Force('link').distance(120);     // Extra long data streams
+      fgRef.current.d3ReheatSimulation();              // Force engine to apply immediately
     }
   }, [graphData]);
 
@@ -52,7 +53,7 @@ export default function NexusGraph() {
     
     const cleanTarget = target.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
     
-    let liveNodes: any[] = [{ id: cleanTarget, name: cleanTarget, type: 'ROOT_DOMAIN', group: 1, val: 15 }];
+    let liveNodes: any[] = [{ id: cleanTarget, name: cleanTarget, type: 'ROOT_DOMAIN', group: 1, val: 20 }];
     let liveLinks: any[] = [];
 
     try {
@@ -68,7 +69,7 @@ export default function NexusGraph() {
           if (record.type === 1) { 
             const ipId = `IP: ${record.data}`;
             if (!liveNodes.find(n => n.id === ipId)) {
-              liveNodes.push({ id: ipId, name: record.data, type: 'IPv4_HOST', group: 2, val: 8, expanded: false });
+              liveNodes.push({ id: ipId, name: record.data, type: 'IPv4_HOST', group: 2, val: 10, expanded: false });
               liveLinks.push({ source: cleanTarget, target: ipId });
             }
           }
@@ -80,7 +81,7 @@ export default function NexusGraph() {
           const mxData = record.data.split(' ')[1] || record.data;
           const mxId = `MX: ${mxData}`;
           if (!liveNodes.find(n => n.id === mxId)) {
-            liveNodes.push({ id: mxId, name: mxData, type: 'MAIL_SERVER', group: 3, val: 6 });
+            liveNodes.push({ id: mxId, name: mxData, type: 'MAIL_SERVER', group: 3, val: 8 });
             liveLinks.push({ source: cleanTarget, target: mxId });
           }
         });
@@ -90,7 +91,7 @@ export default function NexusGraph() {
         nsRes.Answer.forEach((record: any) => {
           const nsId = `NS: ${record.data}`;
           if (!liveNodes.find(n => n.id === nsId)) {
-            liveNodes.push({ id: nsId, name: record.data, type: 'NAME_SERVER', group: 4, val: 6 });
+            liveNodes.push({ id: nsId, name: record.data, type: 'NAME_SERVER', group: 4, val: 8 });
             liveLinks.push({ source: cleanTarget, target: nsId });
           }
         });
@@ -101,7 +102,7 @@ export default function NexusGraph() {
           if (record.data.includes('v=spf') || record.data.includes('v=DMARC')) {
             const secId = `SEC: ${record.data.substring(0, 20)}...`;
             if (!liveNodes.find(n => n.id === secId)) {
-               liveNodes.push({ id: secId, name: 'TXT Security Policy', type: 'SEC_POLICY', group: 5, val: 4, fullData: record.data });
+               liveNodes.push({ id: secId, name: 'TXT Security Policy', type: 'SEC_POLICY', group: 5, val: 6, fullData: record.data });
                liveLinks.push({ source: cleanTarget, target: secId });
             }
           }
@@ -116,7 +117,7 @@ export default function NexusGraph() {
     }
   };
 
-  // RECURSIVE EXPANSION ENGINE
+  // RECURSIVE EXPANSION ENGINE (Now returns data so it can be automated)
   const expandNode = async (node: any) => {
     if (node.type !== 'IPv4_HOST' || node.expanded) return;
     
@@ -126,28 +127,27 @@ export default function NexusGraph() {
       const data = await res.json();
       
       if (data.success) {
-        const newNodes = [...graphData.nodes];
-        const newLinks = [...graphData.links];
+        setGraphData(prev => {
+          const newNodes = [...prev.nodes];
+          const newLinks = [...prev.links];
 
-        // Mark parent as expanded
-        const parentIdx = newNodes.findIndex(n => n.id === node.id);
-        if (parentIdx > -1) newNodes[parentIdx].expanded = true;
+          const parentIdx = newNodes.findIndex(n => n.id === node.id);
+          if (parentIdx > -1) newNodes[parentIdx].expanded = true;
 
-        // Spawn ISP Node
-        const ispId = `ISP_${data.connection.isp}`;
-        if (!newNodes.find(n => n.id === ispId)) {
-          newNodes.push({ id: ispId, name: data.connection.isp, type: 'ISP_PROVIDER', group: 6, val: 5 });
-        }
-        newLinks.push({ source: node.id, target: ispId });
+          const ispId = `ISP_${data.connection.isp}`;
+          if (!newNodes.find(n => n.id === ispId)) {
+            newNodes.push({ id: ispId, name: data.connection.isp, type: 'ISP_PROVIDER', group: 6, val: 7 });
+          }
+          newLinks.push({ source: node.id, target: ispId });
 
-        // Spawn Geo Node
-        const geoId = `GEO_${data.city}_${data.country_code}`;
-        if (!newNodes.find(n => n.id === geoId)) {
-          newNodes.push({ id: geoId, name: `${data.city}, ${data.country_code}`, type: 'GEO_LOCATION', group: 7, val: 5 });
-        }
-        newLinks.push({ source: node.id, target: geoId });
+          const geoId = `GEO_${data.city}_${data.country_code}`;
+          if (!newNodes.find(n => n.id === geoId)) {
+            newNodes.push({ id: geoId, name: `${data.city}, ${data.country_code}`, type: 'GEO_LOCATION', group: 7, val: 7 });
+          }
+          newLinks.push({ source: node.id, target: geoId });
 
-        setGraphData({ nodes: newNodes, links: newLinks });
+          return { nodes: newNodes, links: newLinks };
+        });
       }
     } catch (e) {
       console.error("Expansion trace failed", e);
@@ -156,17 +156,28 @@ export default function NexusGraph() {
     }
   };
 
+  // AUTOMATED MASS FORENSICS: Hunts down every IP at once
+  const executeDeepTraceAll = async () => {
+    const unexpandedIPs = graphData.nodes.filter(n => n.type === 'IPv4_HOST' && !n.expanded);
+    if (unexpandedIPs.length === 0) return;
+
+    for (const ipNode of unexpandedIPs) {
+      await expandNode(ipNode);
+      // 500ms delay to prevent OSINT API rate-limiting
+      await new Promise(resolve => setTimeout(resolve, 500)); 
+    }
+  };
+
   const handleNodeClick = useCallback((node: any) => {
     setActiveNode(node);
     if (fgRef.current) {
       fgRef.current.centerAt(node.x, node.y, 1000);
-      fgRef.current.zoom(3, 1000);
+      fgRef.current.zoom(2.5, 1000);
     }
-    // Automatically trigger deep trace on IPs
     if (node.type === 'IPv4_HOST' && !node.expanded) {
       expandNode(node);
     }
-  }, [graphData]);
+  }, []);
 
   const getNodeColor = (group: number) => {
     switch(group) {
@@ -210,7 +221,7 @@ export default function NexusGraph() {
               </h1>
               <div className="text-[8px] text-[#00ffcc] tracking-widest mt-0.5 flex items-center gap-2">
                 LIVE INFRASTRUCTURE MAPPING 
-                {isExpanding && <span className="text-[#ff3366] animate-pulse flex items-center gap-1"><Zap size={8}/> DEEP TRACING</span>}
+                {isExpanding && <span className="text-[#ff3366] animate-pulse flex items-center gap-1"><Zap size={8}/> TRACING VECTORS</span>}
               </div>
             </div>
           </div>
@@ -219,21 +230,34 @@ export default function NexusGraph() {
         <div className="flex items-center gap-2 bg-black/80 border border-[#333] p-2 backdrop-blur-md pointer-events-auto w-full md:w-auto">
           <input 
             type="text" 
-            placeholder="TARGET DOMAIN (e.g. mit.edu)"
+            placeholder="TARGET (e.g. fbi.gov)"
             value={target}
             onChange={(e) => setTarget(e.target.value)}
             disabled={isScanning}
-            className="bg-transparent border-none text-[#ffaa00] text-xs font-bold tracking-widest focus:outline-none placeholder-gray-600 w-48 md:w-64"
+            className="bg-transparent border-none text-[#ffaa00] text-xs font-bold tracking-widest focus:outline-none placeholder-gray-600 w-40 md:w-64"
           />
           <button 
             onClick={buildLiveInfrastructureGraph}
             disabled={isScanning || !target}
-            className="bg-[#9933ff]/20 text-[#9933ff] px-3 py-1 text-[10px] tracking-widest uppercase hover:bg-[#9933ff] hover:text-white transition-all border border-[#9933ff]/50 disabled:opacity-50 flex items-center gap-2"
+            className="bg-[#9933ff]/20 text-[#9933ff] px-3 py-1.5 text-[10px] tracking-widest uppercase hover:bg-[#9933ff] hover:text-white transition-all border border-[#9933ff]/50 disabled:opacity-50 flex items-center gap-2"
           >
-            {isScanning ? <><Loader2 size={12} className="animate-spin"/> TRACING...</> : <><Crosshair size={12}/> DEPLOY</>}
+            {isScanning ? <><Loader2 size={12} className="animate-spin"/> SCANNING</> : <><Crosshair size={12}/> DEPLOY</>}
           </button>
         </div>
       </header>
+
+      {/* GOD MODE AUTOMATION: MASS TRACE BUTTON */}
+      {graphData.nodes.length > 0 && graphData.nodes.some(n => n.type === 'IPv4_HOST' && !n.expanded) && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
+          <button 
+            onClick={executeDeepTraceAll}
+            disabled={isExpanding}
+            className="bg-[#ff3366]/10 border border-[#ff3366] text-[#ff3366] px-6 py-3 text-xs font-bold tracking-[0.3em] uppercase hover:bg-[#ff3366] hover:text-white transition-all shadow-[0_0_15px_rgba(255,51,102,0.3)] flex items-center gap-3 disabled:opacity-50"
+          >
+            {isExpanding ? <><Loader2 size={16} className="animate-spin"/> EXECUTING MASS FORENSICS</> : <><Radar size={16} className="animate-pulse"/> DEEP TRACE ALL HOSTS</>}
+          </button>
+        </div>
+      )}
 
       <div className="flex-grow w-full h-full cursor-crosshair" ref={containerRef}>
         {graphData.nodes.length > 0 ? (
@@ -245,10 +269,10 @@ export default function NexusGraph() {
             nodeLabel="name"
             nodeColor={(node: any) => getNodeColor(node.group)}
             nodeRelSize={5}
-            linkColor={() => 'rgba(255,255,255,0.15)'}
+            linkColor={() => 'rgba(255,255,255,0.2)'}
             linkWidth={1.5}
-            linkDirectionalParticles={2}
-            linkDirectionalParticleWidth={2}
+            linkDirectionalParticles={3}
+            linkDirectionalParticleWidth={2.5}
             linkDirectionalParticleColor={() => '#00ffcc'}
             linkDirectionalParticleSpeed={0.008}
             onNodeClick={handleNodeClick}
@@ -256,7 +280,7 @@ export default function NexusGraph() {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-[#333] tracking-[0.3em] text-xs uppercase">
-            AWAITING TARGET DESIGNATION FOR ONTOLOGY BUILD
+            AWAITING TARGET DESIGNATION
           </div>
         )}
       </div>
@@ -293,12 +317,6 @@ export default function NexusGraph() {
                 <div className="flex flex-col"><span className="text-[#555]">NODE_CLASS</span><span className="text-white uppercase">{activeNode.type}</span></div>
                 <div className="flex flex-col"><span className="text-[#555]">STATUS</span><span className="text-[#00ffcc] animate-pulse">RESOLVED</span></div>
               </div>
-
-              {activeNode.type === 'IPv4_HOST' && !activeNode.expanded && (
-                <div className="mt-2 text-[8px] text-[#ffaa00] border border-[#ffaa00]/30 bg-[#ffaa00]/10 p-2 text-center uppercase tracking-widest flex items-center justify-center gap-2">
-                  <Loader2 size={10} className="animate-spin" /> EXECUTING DEEP TRACE...
-                </div>
-              )}
             </div>
           </motion.div>
         )}
