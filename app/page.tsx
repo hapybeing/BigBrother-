@@ -63,7 +63,6 @@ export default function Dashboard() {
       setThreatMatrix(prev => prev.map(t => ({ ...t, A: Math.max(40, Math.min(140, t.A + (Math.random() * 10 - 5))) })));
     }, 1000);
 
-    // KINETIC DATA STREAM GENERATOR
     const streamInterval = setInterval(() => {
       const newStream = {
         id: Math.random().toString(36),
@@ -150,28 +149,31 @@ export default function Dashboard() {
             <div className="flex-grow w-full h-full -ml-4">
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart cx="50%" cy="50%" outerRadius="65%" data={threatMatrix}>
-                  <PolarGrid stroke="#222" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#666', fontSize: 8 }} />
+                  <PolarGrid stroke="#333" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#888', fontSize: 8 }} />
                   <Radar name="Threat Level" dataKey="A" stroke="#ff3366" fill="#ff3366" fillOpacity={0.3} />
                 </RadarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          <div className="border border-[#222] bg-[#050505] p-2 relative flex-grow flex flex-col min-h-0 overflow-hidden">
+          <div className="border border-[#222] bg-[#050505] p-2 relative flex-grow flex flex-col min-h-0">
             <div className="absolute top-0 left-0 w-full h-0.5 bg-[#ffaa00]"></div>
             <h2 className="text-[#555] text-[10px] font-bold uppercase mb-2 flex items-center gap-2 flex-none">
               <Terminal size={12} className="text-[#ffaa00]" /> LIVE_CVE_INTERCEPT
             </h2>
-            <div className="flex-grow overflow-y-auto pr-2 custom-scrollbar">
-              {cveLogs.map((repo, i) => (
-                <div key={i} className="mb-3 border-b border-[#111] pb-2 last:border-0">
-                  <div className="text-[#ffaa00] text-[10px] font-bold break-all">[{repo.name.toUpperCase()}]</div>
-                  <div className="text-gray-400 text-[8px] mt-1 leading-tight tracking-tight">
-                    {repo.description ? repo.description.substring(0, 80) + '...' : 'NO_PAYLOAD_DESCRIPTION_PROVIDED'}
+            {/* ABSOLUTE SCROLL FIX */}
+            <div className="relative flex-grow min-h-0 w-full">
+              <div className="absolute inset-0 overflow-y-auto pr-2 custom-scrollbar pb-6">
+                {cveLogs.map((repo, i) => (
+                  <div key={i} className="mb-3 border-b border-[#111] pb-2 last:border-0">
+                    <div className="text-[#ffaa00] text-[10px] font-bold break-all">[{repo.name.toUpperCase()}]</div>
+                    <div className="text-gray-400 text-[8px] mt-1 leading-tight tracking-tight">
+                      {repo.description ? repo.description.substring(0, 80) + '...' : 'NO_PAYLOAD_DESCRIPTION_PROVIDED'}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -198,10 +200,10 @@ export default function Dashboard() {
                       <Geography
                         key={geo.rsmKey}
                         geography={geo}
-                        fill="#0a0a0a"
-                        stroke="#222222"
+                        fill="#1c1c1c" /* BRIGHTENED MAP FILL */
+                        stroke="#3a3a3a" /* BRIGHTENED MAP BORDERS */
                         strokeWidth={0.5 / mapPosition.zoom}
-                        style={{ default: { outline: "none" }, hover: { fill: "#111", outline: "none" }, pressed: { outline: "none" } }}
+                        style={{ default: { outline: "none" }, hover: { fill: "#252525", outline: "none" }, pressed: { outline: "none" } }}
                       />
                     ))
                   }
@@ -214,9 +216,9 @@ export default function Dashboard() {
                     from={stream.from}
                     to={stream.to}
                     stroke={stream.color}
-                    strokeWidth={1 / mapPosition.zoom}
+                    strokeWidth={1.5 / mapPosition.zoom} /* THICKER STREAMS */
                     strokeLinecap="round"
-                    className="opacity-40 animate-[dash_2s_linear_infinite]"
+                    className="opacity-70 animate-[dash_2s_linear_infinite]"
                     strokeDasharray="4 8"
                   />
                 ))}
@@ -224,32 +226,31 @@ export default function Dashboard() {
                 {/* PASSIVE QUAKE MARKERS */}
                 {quakes.map((q, i) => (
                   <Marker key={`quake-${i}`} coordinates={[q.geometry.coordinates[0], q.geometry.coordinates[1]]} onClick={() => { setActiveTarget(q); setOsintTarget(null); }}>
-                    <circle r={(q.properties.mag > 4.5 ? 4 : 2) / mapPosition.zoom} fill={q.properties.mag > 4.5 ? "#ff3366" : "#00ffcc"} className="cursor-pointer transition-all opacity-40" />
+                    <circle r={(q.properties.mag > 4.5 ? 4 : 2) / mapPosition.zoom} fill={q.properties.mag > 4.5 ? "#ff3366" : "#00ffcc"} className="cursor-pointer transition-all opacity-60" />
                   </Marker>
                 ))}
 
                 {/* ACTIVE TERMINAL OSINT TARGET */}
                 {osintTarget && (
                   <>
-                    {/* Targeting Vector Line */}
                     <Line
-                      from={[0, 0]} // Origin center point
+                      from={[0, 0]}
                       to={osintTarget.coordinates}
                       stroke="#00ffcc"
-                      strokeWidth={1.5 / mapPosition.zoom}
+                      strokeWidth={2 / mapPosition.zoom}
                       strokeLinecap="round"
-                      className="opacity-70 animate-[dash_1s_linear_infinite]"
+                      className="opacity-90 animate-[dash_1s_linear_infinite]"
                       strokeDasharray="5 5"
                     />
                     <Marker coordinates={osintTarget.coordinates}>
                       <g className="animate-spin-slow">
-                        <circle r={20 / mapPosition.zoom} fill="rgba(0,255,204,0.1)" stroke="#00ffcc" strokeWidth={1 / mapPosition.zoom} strokeDasharray="2 4" />
+                        <circle r={20 / mapPosition.zoom} fill="rgba(0,255,204,0.15)" stroke="#00ffcc" strokeWidth={1.5 / mapPosition.zoom} strokeDasharray="2 4" />
                         <line x1={-25 / mapPosition.zoom} y1="0" x2={-15 / mapPosition.zoom} y2="0" stroke="#00ffcc" strokeWidth={1.5 / mapPosition.zoom} />
                         <line x1={15 / mapPosition.zoom} y1="0" x2={25 / mapPosition.zoom} y2="0" stroke="#00ffcc" strokeWidth={1.5 / mapPosition.zoom} />
                         <line x1="0" y1={-25 / mapPosition.zoom} x2="0" y2={-15 / mapPosition.zoom} stroke="#00ffcc" strokeWidth={1.5 / mapPosition.zoom} />
                         <line x1="0" y1={15 / mapPosition.zoom} x2="0" y2={25 / mapPosition.zoom} stroke="#00ffcc" strokeWidth={1.5 / mapPosition.zoom} />
                       </g>
-                      <circle r={3 / mapPosition.zoom} fill="#fff" className="animate-pulse" />
+                      <circle r={4 / mapPosition.zoom} fill="#fff" className="animate-pulse shadow-[0_0_10px_#00ffcc]" />
                     </Marker>
                   </>
                 )}
@@ -259,9 +260,9 @@ export default function Dashboard() {
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[rgba(0,255,204,0.03)] to-transparent h-8 w-full animate-[scan_4s_linear_infinite] pointer-events-none border-b border-[#00ffcc]/10"></div>
         </div>
 
-        {/* RIGHT FLANK (FIXED SCROLLING UI) */}
+        {/* RIGHT FLANK */}
         <div className="col-span-4 lg:col-span-3 flex flex-col gap-3 h-full min-h-0">
-          <div className="border border-[#222] bg-[#050505] p-2 relative flex-none h-[40%] flex flex-col">
+          <div className="border border-[#222] bg-[#050505] p-2 relative flex-none h-[35%] flex flex-col">
             <div className="absolute top-0 left-0 w-full h-0.5 bg-[#00ffcc]"></div>
             <h2 className="text-[#555] text-[10px] font-bold uppercase mb-2 flex justify-between items-center">
               <span className="flex items-center gap-2"><Activity size={12} className="text-[#00ffcc]" /> FININT: BTC</span>
@@ -283,61 +284,62 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* TELEMETRY PANEL - NOW SCROLLABLE */}
-          <div className="border border-[#222] bg-[#050505] p-3 relative flex-grow flex flex-col min-h-0 overflow-hidden">
+          <div className="border border-[#222] bg-[#050505] p-3 relative flex-grow flex flex-col min-h-0">
              <div className={`absolute top-0 left-0 w-full h-0.5 ${osintTarget ? 'bg-[#00ffcc]' : activeTarget ? 'bg-[#ff3366]' : 'bg-gray-600'}`}></div>
              <h2 className={`text-[10px] font-bold uppercase mb-4 flex items-center gap-2 flex-none ${osintTarget ? 'text-[#00ffcc]' : activeTarget ? 'text-[#ff3366]' : 'text-[#555]'}`}>
               {osintTarget || activeTarget ? <Target size={12} className="animate-pulse" /> : <Cpu size={12} />} 
               {osintTarget ? 'OSINT_TARGET_LOCKED' : activeTarget ? 'SEISMIC_EVENT_LOCKED' : 'SYSTEM_DIAGNOSTICS'}
             </h2>
             
-            {/* Scrollable Container */}
-            <div className="overflow-y-auto custom-scrollbar flex-grow pr-2 pb-12">
-              {osintTarget ? (
-                <div className="space-y-4">
-                  <div className="text-[#00ffcc] text-lg font-bold border-b border-[#333] pb-2 break-all">
-                    {osintTarget.ip}
-                  </div>
-                  
-                  <div className="bg-[#111] p-2 border border-[#222]">
-                    <div className="text-[#555] text-[8px] uppercase tracking-widest mb-1 flex items-center gap-2"><AlertTriangle size={10}/> Network Topology</div>
-                    <div className="text-gray-400 text-xs truncate" title={osintTarget.isp}>{osintTarget.isp}</div>
-                  </div>
+            {/* ABSOLUTE SCROLL FIX FOR TELEMETRY */}
+            <div className="relative flex-grow min-h-0 w-full">
+              <div className="absolute inset-0 overflow-y-auto custom-scrollbar pr-2 pb-8">
+                {osintTarget ? (
+                  <div className="space-y-4">
+                    <div className="text-[#00ffcc] text-lg font-bold border-b border-[#333] pb-2 break-all">
+                      {osintTarget.ip}
+                    </div>
+                    
+                    <div className="bg-[#111] p-2 border border-[#222]">
+                      <div className="text-[#555] text-[8px] uppercase tracking-widest mb-1 flex items-center gap-2"><AlertTriangle size={10}/> Network Topology</div>
+                      <div className="text-gray-400 text-xs truncate" title={osintTarget.isp}>{osintTarget.isp}</div>
+                    </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-[9px] tracking-wider text-gray-400">
-                    <div className="flex flex-col bg-[#111] p-2 border border-[#222]"><span className="text-[#555] mb-1">CITY</span><span className="text-white truncate">{osintTarget.city}</span></div>
-                    <div className="flex flex-col bg-[#111] p-2 border border-[#222]"><span className="text-[#555] mb-1">COUNTRY</span><span className="text-white">{osintTarget.country}</span></div>
+                    <div className="grid grid-cols-2 gap-2 text-[9px] tracking-wider text-gray-400">
+                      <div className="flex flex-col bg-[#111] p-2 border border-[#222]"><span className="text-[#555] mb-1">CITY</span><span className="text-white truncate">{osintTarget.city}</span></div>
+                      <div className="flex flex-col bg-[#111] p-2 border border-[#222]"><span className="text-[#555] mb-1">COUNTRY</span><span className="text-white">{osintTarget.country}</span></div>
+                    </div>
+                    
+                    <div className="space-y-2 pt-2">
+                      <div className="flex justify-between text-[9px] border-b border-[#111] pb-1"><span className="text-[#555]">LATITUDE:</span><span className="text-white font-mono">{osintTarget.coordinates[1].toFixed(5)}</span></div>
+                      <div className="flex justify-between text-[9px] border-b border-[#111] pb-1"><span className="text-[#555]">LONGITUDE:</span><span className="text-white font-mono">{osintTarget.coordinates[0].toFixed(5)}</span></div>
+                      <div className="flex justify-between text-[9px] pt-1"><span className="text-[#555]">STATUS:</span><span className="text-[#00ffcc] animate-pulse">ACTIVE TRACKING</span></div>
+                    </div>
                   </div>
-                  
-                  <div className="space-y-2 pt-2">
-                    <div className="flex justify-between text-[9px] border-b border-[#111] pb-1"><span className="text-[#555]">LATITUDE:</span><span className="text-white font-mono">{osintTarget.coordinates[1].toFixed(5)}</span></div>
-                    <div className="flex justify-between text-[9px] border-b border-[#111] pb-1"><span className="text-[#555]">LONGITUDE:</span><span className="text-white font-mono">{osintTarget.coordinates[0].toFixed(5)}</span></div>
-                    <div className="flex justify-between text-[9px] pt-1"><span className="text-[#555]">STATUS:</span><span className="text-[#00ffcc] animate-pulse">ACTIVE TRACKING</span></div>
+                ) : activeTarget ? (
+                  <div className="space-y-3">
+                    <div className="text-white text-xs font-bold border-b border-[#222] pb-2 leading-tight">
+                      {activeTarget.properties.place.toUpperCase()}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[9px] tracking-wider text-gray-400 mt-2">
+                      <div className="flex flex-col"><span className="text-[#555]">MAGNITUDE</span><span className={`text-lg font-bold ${activeTarget.properties.mag > 4.5 ? 'text-[#ff3366]' : 'text-[#00ffcc]'}`}>{activeTarget.properties.mag.toFixed(1)}</span></div>
+                      <div className="flex flex-col"><span className="text-[#555]">DEPTH</span><span className="text-white text-lg">{activeTarget.geometry.coordinates[2].toFixed(1)} <span className="text-[8px]">KM</span></span></div>
+                    </div>
                   </div>
-                </div>
-              ) : activeTarget ? (
-                <div className="space-y-3">
-                  <div className="text-white text-xs font-bold border-b border-[#222] pb-2 leading-tight">
-                    {activeTarget.properties.place.toUpperCase()}
+                ) : (
+                  <div className="space-y-4 flex flex-col justify-center mt-4">
+                    <div>
+                      <div className="flex justify-between text-[9px] text-gray-500 mb-1"><span>MEMORY_HEAP</span><span>84%</span></div>
+                      <div className="w-full bg-[#111] h-1 rounded-none"><div className="bg-[#ffaa00] h-full w-[84%]"></div></div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-[9px] text-gray-500 mb-1"><span>SENSOR_ARRAY</span><span>AWAITING KERNEL INPUT</span></div>
+                      <div className="w-full bg-[#111] h-1 rounded-none"><div className="bg-gray-700 h-full w-[100%]"></div></div>
+                    </div>
+                    <div className="text-[8px] text-center text-gray-600 mt-6 animate-pulse border border-[#222] p-2 bg-[#111]">USE THE KERNEL TERMINAL TO INITIATE A TARGET LOCK</div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-[9px] tracking-wider text-gray-400 mt-2">
-                    <div className="flex flex-col"><span className="text-[#555]">MAGNITUDE</span><span className={`text-lg font-bold ${activeTarget.properties.mag > 4.5 ? 'text-[#ff3366]' : 'text-[#00ffcc]'}`}>{activeTarget.properties.mag.toFixed(1)}</span></div>
-                    <div className="flex flex-col"><span className="text-[#555]">DEPTH</span><span className="text-white text-lg">{activeTarget.geometry.coordinates[2].toFixed(1)} <span className="text-[8px]">KM</span></span></div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4 flex flex-col justify-center mt-4">
-                  <div>
-                    <div className="flex justify-between text-[9px] text-gray-500 mb-1"><span>MEMORY_HEAP</span><span>84%</span></div>
-                    <div className="w-full bg-[#111] h-1 rounded-none"><div className="bg-[#ffaa00] h-full w-[84%]"></div></div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-[9px] text-gray-500 mb-1"><span>SENSOR_ARRAY</span><span>AWAITING KERNEL INPUT</span></div>
-                    <div className="w-full bg-[#111] h-1 rounded-none"><div className="bg-gray-700 h-full w-[100%]"></div></div>
-                  </div>
-                  <div className="text-[8px] text-center text-gray-600 mt-6 animate-pulse border border-[#222] p-2 bg-[#111]">USE THE KERNEL TERMINAL TO INITIATE A TARGET LOCK</div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </div>
