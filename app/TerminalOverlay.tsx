@@ -7,8 +7,8 @@ export default function TerminalOverlay() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<{ type: 'cmd' | 'out' | 'err' | 'sys' | 'warn', text: string }[]>([
-    { type: 'sys', text: 'OVERWATCH KERNEL v2.0 ONLINE.' },
-    { type: 'sys', text: 'IDENTITY & LEDGER FORENSICS: ACTIVE.' },
+    { type: 'sys', text: 'OVERWATCH KERNEL v2.1 ONLINE.' },
+    { type: 'sys', text: 'IDENTITY & LEDGER FORENSICS: ACTIVE. (TIMEOUT PROTOCOLS ENFORCED)' },
     { type: 'sys', text: 'TYPE "help" FOR PROTOCOLS.' }
   ]);
   
@@ -64,22 +64,39 @@ export default function TerminalOverlay() {
           setIsOpen(false);
           break;
 
-        // THE NEW IDENTITY HUNTER
+        // FIXED IDENTITY HUNTER WITH ABORT CONTROLLER
         case 'breach':
           if (!targetArg || !targetArg.includes('@')) throw new Error("REQUIRES VALID EMAIL (e.g., breach target@email.com)");
           setHistory(prev => [...prev, { type: 'sys', text: `CROSS-REFERENCING [${targetArg}] AGAINST GLOBAL LEAK REGISTRIES...` }]);
           
           try {
-            const breachRes = await fetch(`https://api.xposedornot.com/v1/check-email/${targetArg}`);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8-second hard kill
+
+            const breachRes = await fetch(`https://api.xposedornot.com/v1/check-email/${targetArg}`, {
+              signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
             if (breachRes.status === 404) {
               setHistory(prev => [...prev, { type: 'out', text: `[SECURE]: TARGET EMAIL NOT FOUND IN ANY KNOWN DARK WEB DATABASES.` }]);
               break;
             }
-            if (!breachRes.ok) throw new Error("BREACH API REJECTED REQUEST.");
+            if (!breachRes.ok) throw new Error(`API REJECTED REQUEST. STATUS: ${breachRes.status}`);
             
             const breachData = await breachRes.json();
-            if (breachData.breaches && breachData.breaches[0]) {
-              const leaks = breachData.breaches[0];
+            
+            // Bulletproof Array Parsing
+            let leaks: string[] = [];
+            if (breachData.breaches) {
+              if (Array.isArray(breachData.breaches[0])) {
+                leaks = breachData.breaches[0]; // Nested array handling
+              } else if (Array.isArray(breachData.breaches)) {
+                leaks = breachData.breaches;    // Flat array handling
+              }
+            }
+
+            if (leaks.length > 0) {
               setHistory(prev => [...prev, { type: 'warn', text: `[!] CRITICAL COMPROMISE DETECTED: TARGET APPEARS IN ${leaks.length} DATABASE LEAKS.` }]);
               setHistory(prev => [...prev, { type: 'out', text: `[KNOWN COMPROMISED PLATFORMS]:` }]);
               
@@ -89,13 +106,18 @@ export default function TerminalOverlay() {
               if (leaks.length > 10) {
                  setHistory(prev => [...prev, { type: 'warn', text: `    ...AND ${leaks.length - 10} MORE. IDENTITY IS HIGHLY EXPOSED.` }]);
               }
+            } else {
+              setHistory(prev => [...prev, { type: 'out', text: `[SECURE]: TARGET EMAIL NOT FOUND.` }]);
             }
           } catch (e: any) {
-             setHistory(prev => [...prev, { type: 'err', text: `[!] OSINT FAILURE: ${e.message}` }]);
+             if (e.name === 'AbortError') {
+                setHistory(prev => [...prev, { type: 'err', text: `[!] OSINT FAILURE: CONNECTION TIMED OUT BY KERNEL. TARGET DB UNRESPONSIVE.` }]);
+             } else {
+                setHistory(prev => [...prev, { type: 'err', text: `[!] OSINT FAILURE: ${e.message}` }]);
+             }
           }
           break;
 
-        // THE NEW LEDGER TRACKER
         case 'ledger':
           if (!targetArg) throw new Error("REQUIRES BITCOIN WALLET ADDRESS (e.g., ledger 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa)");
           setHistory(prev => [...prev, { type: 'sys', text: `INTERROGATING BLOCKCHAIN FOR WALLET [${targetArg}]...` }]);
@@ -105,7 +127,7 @@ export default function TerminalOverlay() {
             if (!btcRes.ok) throw new Error("INVALID WALLET ADDRESS OR API RATE LIMIT EXCEEDED.");
             
             const btcData = await btcRes.json();
-            const btcBalance = (btcData.balance / 100000000).toFixed(4); // Convert Satoshis to BTC
+            const btcBalance = (btcData.balance / 100000000).toFixed(4); 
             const btcReceived = (btcData.total_received / 100000000).toFixed(4);
             const btcSent = (btcData.total_sent / 100000000).toFixed(4);
 
@@ -278,7 +300,7 @@ export default function TerminalOverlay() {
           >
             <div className="flex justify-between items-center bg-[#111] border-b border-[#222] px-4 py-2">
               <div className="flex items-center gap-2 text-[#00ffcc] text-[10px] tracking-widest font-bold">
-                <TerminalIcon size={12} /> OVERWATCH KERNEL v2.0
+                <TerminalIcon size={12} /> OVERWATCH KERNEL v2.1
               </div>
               <button onClick={() => setIsOpen(false)} className="text-gray-500 hover:text-[#ff3366] transition-colors">
                 <X size={16} />
