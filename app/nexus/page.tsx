@@ -37,25 +37,6 @@ export default function NexusGraph() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // FIXED PHYSICS ENGINE: Applied once on mount, no longer locked by state changes
-  useEffect(() => {
-    if (fgRef.current) {
-      fgRef.current.d3Force('charge').strength(-1000); 
-      fgRef.current.d3Force('link').distance(120);    
-    }
-  }, []);
-
-  // UTILITY: Force the physics engine to explode dynamically
-  const detonatePhysics = () => {
-    setTimeout(() => {
-      if (fgRef.current) {
-        fgRef.current.d3Force('charge').strength(-1200);
-        fgRef.current.d3Force('link').distance(150);
-        fgRef.current.d3ReheatSimulation();
-      }
-    }, 100);
-  };
-
   const buildLiveInfrastructureGraph = async () => {
     if (!target) return;
     setIsScanning(true);
@@ -63,6 +44,7 @@ export default function NexusGraph() {
     
     const cleanTarget = target.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
     
+    // Core Root Node
     let liveNodes: any[] = [{ id: cleanTarget, name: cleanTarget, type: 'ROOT_DOMAIN', group: 1, val: 20 }];
     let liveLinks: any[] = [];
 
@@ -120,8 +102,9 @@ export default function NexusGraph() {
       }
 
       setGraphData({ nodes: liveNodes, links: liveLinks });
-      detonatePhysics(); // Trigger explosion on initial load
-
+      if (fgRef.current) {
+        fgRef.current.zoomToFit(1000, 50);
+      }
     } catch (error) {
       console.error("Ontology Construction Failed:", error);
     } finally {
@@ -129,59 +112,54 @@ export default function NexusGraph() {
     }
   };
 
-  // FIXED MASS FORENSICS: Concurrent Promise Execution
+  // UPGRADED API & IMMUTABLE STATE INJECTION
   const executeDeepTraceAll = async () => {
     const unexpandedIPs = graphData.nodes.filter(n => n.type === 'IPv4_HOST' && !n.expanded);
     if (unexpandedIPs.length === 0) return;
 
     setIsExpanding(true);
-    let newNodes = [...graphData.nodes];
-    let newLinks = [...graphData.links];
+    
+    // Deep clone to guarantee React state updates
+    let newNodes = graphData.nodes.map(n => ({...n}));
+    let newLinks = graphData.links.map(l => ({...l}));
 
     try {
-      // Fire all traces simultaneously 
+      // Using geojs.io - No rate limits, pure speed
       const fetchPromises = unexpandedIPs.map(async (ipNode) => {
         try {
-          const res = await fetch(`https://ipwho.is/${ipNode.name}`);
+          const res = await fetch(`https://get.geojs.io/v1/ip/geo/${ipNode.name}.json`);
           const data = await res.json();
-          if (data.success) {
-            return { node: ipNode, data };
-          }
+          return { node: ipNode, data };
         } catch (e) {
           return null;
         }
-        return null;
       });
 
       const results = await Promise.all(fetchPromises);
 
-      // Aggregate all results into the graph matrix
       results.forEach(result => {
         if (!result) return;
         const { node, data } = result;
 
-        // Mark as expanded
         const parentIdx = newNodes.findIndex(n => n.id === node.id);
         if (parentIdx > -1) newNodes[parentIdx].expanded = true;
 
-        // Inject ISP
-        const ispId = `ISP_${data.connection.isp}`;
+        const orgName = data.organization_name || 'UNKNOWN_ISP';
+        const ispId = `ISP_${orgName}_${node.id}`; // Unique ID to prevent node merging
         if (!newNodes.find(n => n.id === ispId)) {
-          newNodes.push({ id: ispId, name: data.connection.isp, type: 'ISP_PROVIDER', group: 6, val: 7 });
+          newNodes.push({ id: ispId, name: orgName.substring(0, 25), type: 'ISP_PROVIDER', group: 6, val: 7 });
         }
         newLinks.push({ source: node.id, target: ispId });
 
-        // Inject Geolocation
-        const geoId = `GEO_${data.city}_${data.country_code}`;
+        const city = data.city || 'UNKNOWN_CITY';
+        const geoId = `GEO_${city}_${data.country_code}_${node.id}`;
         if (!newNodes.find(n => n.id === geoId)) {
-          newNodes.push({ id: geoId, name: `${data.city}, ${data.country_code}`, type: 'GEO_LOCATION', group: 7, val: 7 });
+          newNodes.push({ id: geoId, name: `${city}, ${data.country_code}`, type: 'GEO_LOCATION', group: 7, val: 7 });
         }
         newLinks.push({ source: node.id, target: geoId });
       });
 
-      // Update state ONCE with massive payload
       setGraphData({ nodes: newNodes, links: newLinks });
-      detonatePhysics(); // Reheat the engine to blow the nodes apart
 
     } catch (error) {
       console.error("Mass Forensics Failed", error);
@@ -240,7 +218,7 @@ export default function NexusGraph() {
               </h1>
               <div className="text-[8px] text-[#00ffcc] tracking-widest mt-0.5 flex items-center gap-2">
                 LIVE INFRASTRUCTURE MAPPING 
-                {isExpanding && <span className="text-[#ff3366] animate-pulse flex items-center gap-1"><Zap size={8}/> MASS TRACING VECTORS</span>}
+                {isExpanding && <span className="text-[#ff3366] animate-pulse flex items-center gap-1"><Zap size={8}/> TRACING VECTORS</span>}
               </div>
             </div>
           </div>
@@ -265,7 +243,7 @@ export default function NexusGraph() {
         </div>
       </header>
 
-      {/* FIXED GOD MODE AUTOMATION BUTTON */}
+      {/* FIXED MASS TRACE BUTTON */}
       {graphData.nodes.length > 0 && graphData.nodes.some(n => n.type === 'IPv4_HOST' && !n.expanded) && (
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
           <button 
@@ -287,19 +265,25 @@ export default function NexusGraph() {
             graphData={graphData}
             nodeLabel="name"
             nodeColor={(node: any) => getNodeColor(node.group)}
-            nodeRelSize={5}
+            nodeRelSize={6}
             linkColor={() => 'rgba(255,255,255,0.2)'}
             linkWidth={1.5}
             linkDirectionalParticles={3}
-            linkDirectionalParticleWidth={2.5}
+            linkDirectionalParticleWidth={2}
             linkDirectionalParticleColor={() => '#00ffcc'}
-            linkDirectionalParticleSpeed={0.008}
+            linkDirectionalParticleSpeed={0.01}
             onNodeClick={handleNodeClick}
             backgroundColor="#020202"
+            
+            /* THE SECRET SAUCE: Radial DAG Mode forces Palantir-style concentric circles */
+            dagMode="radialout"
+            dagLevelDistance={80}
+            d3AlphaDecay={0.02}
+            d3VelocityDecay={0.3}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-[#333] tracking-[0.3em] text-xs uppercase">
-            AWAITING TARGET DESIGNATION
+          <div className="w-full h-full flex items-center justify-center text-[#333] tracking-[0.3em] text-xs uppercase text-center px-4">
+            AWAITING TARGET DESIGNATION<br/>(RECOMMENDED: FBI.GOV OR CLOUDFLARE.COM)
           </div>
         )}
       </div>
