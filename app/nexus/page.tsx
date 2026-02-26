@@ -37,14 +37,24 @@ export default function NexusGraph() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // VIOLENT PHYSICS OVERRIDE: Forces the graph to explode into a massive web
+  // FIXED PHYSICS ENGINE: Applied once on mount, no longer locked by state changes
   useEffect(() => {
     if (fgRef.current) {
-      fgRef.current.d3Force('charge').strength(-1200); // Massive repulsion
-      fgRef.current.d3Force('link').distance(120);     // Extra long data streams
-      fgRef.current.d3ReheatSimulation();              // Force engine to apply immediately
+      fgRef.current.d3Force('charge').strength(-1000); 
+      fgRef.current.d3Force('link').distance(120);    
     }
-  }, [graphData]);
+  }, []);
+
+  // UTILITY: Force the physics engine to explode dynamically
+  const detonatePhysics = () => {
+    setTimeout(() => {
+      if (fgRef.current) {
+        fgRef.current.d3Force('charge').strength(-1200);
+        fgRef.current.d3Force('link').distance(150);
+        fgRef.current.d3ReheatSimulation();
+      }
+    }, 100);
+  };
 
   const buildLiveInfrastructureGraph = async () => {
     if (!target) return;
@@ -110,6 +120,8 @@ export default function NexusGraph() {
       }
 
       setGraphData({ nodes: liveNodes, links: liveLinks });
+      detonatePhysics(); // Trigger explosion on initial load
+
     } catch (error) {
       console.error("Ontology Construction Failed:", error);
     } finally {
@@ -117,54 +129,64 @@ export default function NexusGraph() {
     }
   };
 
-  // RECURSIVE EXPANSION ENGINE (Now returns data so it can be automated)
-  const expandNode = async (node: any) => {
-    if (node.type !== 'IPv4_HOST' || node.expanded) return;
-    
-    setIsExpanding(true);
-    try {
-      const res = await fetch(`https://ipwho.is/${node.name}`);
-      const data = await res.json();
-      
-      if (data.success) {
-        setGraphData(prev => {
-          const newNodes = [...prev.nodes];
-          const newLinks = [...prev.links];
-
-          const parentIdx = newNodes.findIndex(n => n.id === node.id);
-          if (parentIdx > -1) newNodes[parentIdx].expanded = true;
-
-          const ispId = `ISP_${data.connection.isp}`;
-          if (!newNodes.find(n => n.id === ispId)) {
-            newNodes.push({ id: ispId, name: data.connection.isp, type: 'ISP_PROVIDER', group: 6, val: 7 });
-          }
-          newLinks.push({ source: node.id, target: ispId });
-
-          const geoId = `GEO_${data.city}_${data.country_code}`;
-          if (!newNodes.find(n => n.id === geoId)) {
-            newNodes.push({ id: geoId, name: `${data.city}, ${data.country_code}`, type: 'GEO_LOCATION', group: 7, val: 7 });
-          }
-          newLinks.push({ source: node.id, target: geoId });
-
-          return { nodes: newNodes, links: newLinks };
-        });
-      }
-    } catch (e) {
-      console.error("Expansion trace failed", e);
-    } finally {
-      setIsExpanding(false);
-    }
-  };
-
-  // AUTOMATED MASS FORENSICS: Hunts down every IP at once
+  // FIXED MASS FORENSICS: Concurrent Promise Execution
   const executeDeepTraceAll = async () => {
     const unexpandedIPs = graphData.nodes.filter(n => n.type === 'IPv4_HOST' && !n.expanded);
     if (unexpandedIPs.length === 0) return;
 
-    for (const ipNode of unexpandedIPs) {
-      await expandNode(ipNode);
-      // 500ms delay to prevent OSINT API rate-limiting
-      await new Promise(resolve => setTimeout(resolve, 500)); 
+    setIsExpanding(true);
+    let newNodes = [...graphData.nodes];
+    let newLinks = [...graphData.links];
+
+    try {
+      // Fire all traces simultaneously 
+      const fetchPromises = unexpandedIPs.map(async (ipNode) => {
+        try {
+          const res = await fetch(`https://ipwho.is/${ipNode.name}`);
+          const data = await res.json();
+          if (data.success) {
+            return { node: ipNode, data };
+          }
+        } catch (e) {
+          return null;
+        }
+        return null;
+      });
+
+      const results = await Promise.all(fetchPromises);
+
+      // Aggregate all results into the graph matrix
+      results.forEach(result => {
+        if (!result) return;
+        const { node, data } = result;
+
+        // Mark as expanded
+        const parentIdx = newNodes.findIndex(n => n.id === node.id);
+        if (parentIdx > -1) newNodes[parentIdx].expanded = true;
+
+        // Inject ISP
+        const ispId = `ISP_${data.connection.isp}`;
+        if (!newNodes.find(n => n.id === ispId)) {
+          newNodes.push({ id: ispId, name: data.connection.isp, type: 'ISP_PROVIDER', group: 6, val: 7 });
+        }
+        newLinks.push({ source: node.id, target: ispId });
+
+        // Inject Geolocation
+        const geoId = `GEO_${data.city}_${data.country_code}`;
+        if (!newNodes.find(n => n.id === geoId)) {
+          newNodes.push({ id: geoId, name: `${data.city}, ${data.country_code}`, type: 'GEO_LOCATION', group: 7, val: 7 });
+        }
+        newLinks.push({ source: node.id, target: geoId });
+      });
+
+      // Update state ONCE with massive payload
+      setGraphData({ nodes: newNodes, links: newLinks });
+      detonatePhysics(); // Reheat the engine to blow the nodes apart
+
+    } catch (error) {
+      console.error("Mass Forensics Failed", error);
+    } finally {
+      setIsExpanding(false);
     }
   };
 
@@ -173,9 +195,6 @@ export default function NexusGraph() {
     if (fgRef.current) {
       fgRef.current.centerAt(node.x, node.y, 1000);
       fgRef.current.zoom(2.5, 1000);
-    }
-    if (node.type === 'IPv4_HOST' && !node.expanded) {
-      expandNode(node);
     }
   }, []);
 
@@ -221,7 +240,7 @@ export default function NexusGraph() {
               </h1>
               <div className="text-[8px] text-[#00ffcc] tracking-widest mt-0.5 flex items-center gap-2">
                 LIVE INFRASTRUCTURE MAPPING 
-                {isExpanding && <span className="text-[#ff3366] animate-pulse flex items-center gap-1"><Zap size={8}/> TRACING VECTORS</span>}
+                {isExpanding && <span className="text-[#ff3366] animate-pulse flex items-center gap-1"><Zap size={8}/> MASS TRACING VECTORS</span>}
               </div>
             </div>
           </div>
@@ -246,15 +265,15 @@ export default function NexusGraph() {
         </div>
       </header>
 
-      {/* GOD MODE AUTOMATION: MASS TRACE BUTTON */}
+      {/* FIXED GOD MODE AUTOMATION BUTTON */}
       {graphData.nodes.length > 0 && graphData.nodes.some(n => n.type === 'IPv4_HOST' && !n.expanded) && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
           <button 
             onClick={executeDeepTraceAll}
             disabled={isExpanding}
             className="bg-[#ff3366]/10 border border-[#ff3366] text-[#ff3366] px-6 py-3 text-xs font-bold tracking-[0.3em] uppercase hover:bg-[#ff3366] hover:text-white transition-all shadow-[0_0_15px_rgba(255,51,102,0.3)] flex items-center gap-3 disabled:opacity-50"
           >
-            {isExpanding ? <><Loader2 size={16} className="animate-spin"/> EXECUTING MASS FORENSICS</> : <><Radar size={16} className="animate-pulse"/> DEEP TRACE ALL HOSTS</>}
+            {isExpanding ? <><Loader2 size={16} className="animate-spin"/> INTERROGATING HOSTS...</> : <><Radar size={16} className="animate-pulse"/> DEEP TRACE ALL HOSTS</>}
           </button>
         </div>
       )}
