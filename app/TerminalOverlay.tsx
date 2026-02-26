@@ -7,8 +7,8 @@ export default function TerminalOverlay() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<{ type: 'cmd' | 'out' | 'err' | 'sys' | 'warn', text: string }[]>([
-    { type: 'sys', text: 'OVERWATCH KERNEL v1.4 ONLINE.' },
-    { type: 'sys', text: 'SUBDOMAIN ENUMERATION UPLINK: ACTIVE.' },
+    { type: 'sys', text: 'OVERWATCH KERNEL v1.5 ONLINE.' },
+    { type: 'sys', text: 'GLOBAL EVENT BROADCASTER: ACTIVE.' },
     { type: 'sys', text: 'TYPE "help" FOR PROTOCOLS.' }
   ]);
   
@@ -32,12 +32,19 @@ export default function TerminalOverlay() {
 
     setHistory(prev => [...prev, { type: 'cmd', text: `> ${cmd}` }]);
 
+    // GLOBAL BROADCAST: Tell the rest of the app what the terminal is doing
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('OVERWATCH_CMD_EXEC', { 
+        detail: { command: baseCmd, target: targetArg } 
+      }));
+    }
+
     try {
       switch (baseCmd) {
         case 'help':
           setHistory(prev => [...prev, 
             { type: 'out', text: 'AVAILABLE PROTOCOLS:' },
-            { type: 'out', text: '  subs [domain]            - [NEW] Enumerate hidden subdomains & internal IPs' },
+            { type: 'out', text: '  subs [domain]            - Enumerate hidden subdomains & internal IPs' },
             { type: 'out', text: '  scan [target]            - Auto-resolve & trace (Accepts IP or Domain)' },
             { type: 'out', text: '  intel [ip]               - Interrogate open ports & active CVE vulnerabilities' },
             { type: 'out', text: '  whois [ip] / who is [ip] - Instant OSINT geolocation trace' },
@@ -56,7 +63,6 @@ export default function TerminalOverlay() {
           setIsOpen(false);
           break;
 
-        // THE NEW SUBDOMAIN ENUMERATION ENGINE
         case 'subs':
           if (!targetArg) throw new Error("REQUIRES DOMAIN (e.g., subs tesla.com)");
           setHistory(prev => [...prev, { type: 'sys', text: `INITIATING SUBDOMAIN ENUMERATION FOR [${targetArg.toUpperCase()}]...` }]);
@@ -71,7 +77,6 @@ export default function TerminalOverlay() {
             const lines = subText.split('\n').filter(l => l.trim() !== '');
             setHistory(prev => [...prev, { type: 'out', text: `[+] DISCOVERED ${lines.length} SUBDOMAINS/HOSTS:` }]);
             
-            // Limit output to prevent terminal crashing from massive domains
             const displayLines = lines.slice(0, 15);
             displayLines.forEach(line => {
               const [host, ip] = line.split(',');
@@ -81,6 +86,12 @@ export default function TerminalOverlay() {
             if (lines.length > 15) {
               setHistory(prev => [...prev, { type: 'warn', text: `    ...AND ${lines.length - 15} MORE HIDDEN HOSTS. LIMITING OUTPUT.` }]);
             }
+
+            // GLOBAL BROADCAST: Send the parsed data to the physics engine
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('OVERWATCH_DATA_SUBS', { detail: { target: targetArg, data: lines } }));
+            }
+
           } catch (e: any) {
              setHistory(prev => [...prev, { type: 'err', text: `[!] ENUMERATION FAILED: ${e.message}` }]);
           }
@@ -112,7 +123,6 @@ export default function TerminalOverlay() {
             } else {
               setHistory(prev => [...prev, { type: 'out', text: `[VULNERABILITIES]: NO KNOWN EXPLOITS DETECTED.` }]);
             }
-
           } catch (e: any) {
              setHistory(prev => [...prev, { type: 'err', text: `[!] ${e.message}` }]);
           }
@@ -232,7 +242,7 @@ export default function TerminalOverlay() {
           >
             <div className="flex justify-between items-center bg-[#111] border-b border-[#222] px-4 py-2">
               <div className="flex items-center gap-2 text-[#00ffcc] text-[10px] tracking-widest font-bold">
-                <TerminalIcon size={12} /> OVERWATCH KERNEL v1.4
+                <TerminalIcon size={12} /> OVERWATCH KERNEL v1.5
               </div>
               <button onClick={() => setIsOpen(false)} className="text-gray-500 hover:text-[#ff3366] transition-colors">
                 <X size={16} />
