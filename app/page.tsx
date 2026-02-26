@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
-import { Activity, Globe, Cpu, Terminal, Zap, Crosshair, Radar as RadarIcon, Target } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Activity, Globe, Cpu, Terminal, Crosshair, Radar as RadarIcon, Target, Share2 } from 'lucide-react';
 import { ComposableMap, Geographies, Geography, Marker } from "react-simple-maps";
 import { ResponsiveContainer, AreaChart, Area, Tooltip, RadarChart, PolarGrid, PolarAngleAxis, Radar, YAxis } from 'recharts';
 import Link from 'next/link';
@@ -70,26 +70,37 @@ export default function Dashboard() {
   return (
     <div className="h-screen w-screen p-2 md:p-4 flex flex-col gap-3 bg-[#020202] text-[#e5e5e5] font-mono overflow-hidden box-border select-none">
       
-      {/* UPGRADED COMMAND HEADER WITH ROUTING */}
+      {/* UPGRADED COMMAND HEADER WITH DUAL ROUTING */}
       <header className="flex-none flex justify-between items-end border-b border-[#333] pb-2">
         <div className="flex items-center gap-3">
           <Globe className="text-[#00ffcc] animate-pulse" size={24} />
           <div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-widest text-white uppercase text-shadow-glow flex items-center gap-4">
+            <h1 className="text-xl md:text-2xl font-bold tracking-widest text-white uppercase text-shadow-glow flex items-center gap-3">
               OASIS // OMNI-NODE
-              {/* UPLINK TO RECON SUBSYSTEM */}
-              <Link href="/recon" className="hidden md:flex items-center gap-2 bg-[#ffaa00]/10 border border-[#ffaa00]/50 text-[#ffaa00] px-3 py-1 text-[10px] tracking-widest uppercase hover:bg-[#ffaa00] hover:text-black transition-all rounded-sm shadow-[0_0_10px_rgba(255,170,0,0.2)]">
-                <Terminal size={12} /> Launch Recon Node
-              </Link>
+              
+              {/* DESKTOP/TABLET UPLINKS */}
+              <div className="hidden md:flex gap-2 ml-2">
+                <Link href="/recon" className="flex items-center gap-2 bg-[#ffaa00]/10 border border-[#ffaa00]/50 text-[#ffaa00] px-3 py-1 text-[10px] tracking-widest uppercase hover:bg-[#ffaa00] hover:text-black transition-all rounded-sm shadow-[0_0_10px_rgba(255,170,0,0.2)]">
+                  <Terminal size={12} /> Recon
+                </Link>
+                <Link href="/nexus" className="flex items-center gap-2 bg-[#9933ff]/10 border border-[#9933ff]/50 text-[#9933ff] px-3 py-1 text-[10px] tracking-widest uppercase hover:bg-[#9933ff] hover:text-white transition-all rounded-sm shadow-[0_0_10px_rgba(153,51,255,0.2)]">
+                  <Share2 size={12} /> Nexus Graph
+                </Link>
+              </div>
             </h1>
             <div className="text-[9px] text-gray-500 tracking-[0.4em] uppercase mt-1">Distributed Intelligence Fusion Matrix</div>
           </div>
         </div>
         
-        {/* MOBILE UPLINK */}
-        <Link href="/recon" className="md:hidden flex items-center gap-1 bg-[#ffaa00]/10 border border-[#ffaa00]/50 text-[#ffaa00] px-2 py-1 text-[8px] tracking-widest uppercase hover:bg-[#ffaa00] hover:text-black transition-all">
-           <Terminal size={10} /> Recon
-        </Link>
+        {/* MOBILE UPLINKS */}
+        <div className="md:hidden flex flex-col gap-1">
+          <Link href="/recon" className="flex items-center justify-center gap-1 bg-[#ffaa00]/10 border border-[#ffaa00]/50 text-[#ffaa00] px-2 py-1 text-[8px] tracking-widest uppercase hover:bg-[#ffaa00] hover:text-black transition-all">
+             <Terminal size={10} /> Recon
+          </Link>
+          <Link href="/nexus" className="flex items-center justify-center gap-1 bg-[#9933ff]/10 border border-[#9933ff]/50 text-[#9933ff] px-2 py-1 text-[8px] tracking-widest uppercase hover:bg-[#9933ff] hover:text-white transition-all">
+             <Share2 size={10} /> Nexus
+          </Link>
+        </div>
 
         <div className="text-right hidden md:block">
           <div className="text-[10px] tracking-widest text-[#00ffcc]">SYS_CLOCK: {sysTime}</div>
@@ -155,8 +166,8 @@ export default function Dashboard() {
                     <Geography
                       key={geo.rsmKey}
                       geography={geo}
-                      fill="#1a1a1a"    /* UPGRADED VISIBILITY: Lighter Fill */
-                      stroke="#444444"  /* UPGRADED VISIBILITY: Brighter Borders */
+                      fill="#1a1a1a"
+                      stroke="#444444"
                       strokeWidth={0.5}
                       style={{ default: { outline: "none" }, hover: { fill: "#2a2a2a", outline: "none" }, pressed: { outline: "none" } }}
                     />
