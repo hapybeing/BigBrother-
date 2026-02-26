@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Share2, Server, Globe, Mail, Network, ShieldAlert, Crosshair, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { ArrowLeft, Share2, Server, Globe, Mail, Network, ShieldAlert, Crosshair, Loader2, Zap } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,7 +10,8 @@ const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false 
 export default function NexusGraph() {
   const [target, setTarget] = useState('');
   const [isScanning, setIsScanning] = useState(false);
-  const [graphData, setGraphData] = useState({ nodes: [], links: [] });
+  const [isExpanding, setIsExpanding] = useState(false);
+  const [graphData, setGraphData] = useState({ nodes: [] as any[], links: [] as any[] });
   const [activeNode, setActiveNode] = useState<any>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [sysTime, setSysTime] = useState('');
@@ -36,23 +37,25 @@ export default function NexusGraph() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // THE LIVE ONTOLOGY ENGINE
+  // PHYSICS ENGINE TWEAKS: Repel nodes to create a sprawling web
+  useEffect(() => {
+    if (fgRef.current) {
+      fgRef.current.d3Force('charge').strength(-400); // Stronger repulsion
+      fgRef.current.d3Force('link').distance(60);     // Longer links
+    }
+  }, [graphData]);
+
   const buildLiveInfrastructureGraph = async () => {
     if (!target) return;
     setIsScanning(true);
     setActiveNode(null);
-    setGraphData({ nodes: [], links: [] });
-
+    
     const cleanTarget = target.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
     
-    let liveNodes: any[] = [];
+    let liveNodes: any[] = [{ id: cleanTarget, name: cleanTarget, type: 'ROOT_DOMAIN', group: 1, val: 15 }];
     let liveLinks: any[] = [];
 
-    // 1. Set Root Node
-    liveNodes.push({ id: cleanTarget, name: cleanTarget, type: 'ROOT_DOMAIN', group: 1, val: 15 });
-
     try {
-      // 2. Parallel Interrogation of Global DNS Registries
       const [aRes, mxRes, nsRes, txtRes] = await Promise.all([
         fetch(`https://dns.google/resolve?name=${cleanTarget}&type=A`).then(r => r.json()),
         fetch(`https://dns.google/resolve?name=${cleanTarget}&type=MX`).then(r => r.json()),
@@ -60,23 +63,21 @@ export default function NexusGraph() {
         fetch(`https://dns.google/resolve?name=${cleanTarget}&type=TXT`).then(r => r.json()),
       ]);
 
-      // 3. Data Fusion: Parsing and Linking IPv4 Hosts
       if (aRes.Answer) {
         aRes.Answer.forEach((record: any) => {
-          if (record.type === 1) { // A record
+          if (record.type === 1) { 
             const ipId = `IP: ${record.data}`;
             if (!liveNodes.find(n => n.id === ipId)) {
-              liveNodes.push({ id: ipId, name: record.data, type: 'IPv4_HOST', group: 2, val: 8 });
+              liveNodes.push({ id: ipId, name: record.data, type: 'IPv4_HOST', group: 2, val: 8, expanded: false });
               liveLinks.push({ source: cleanTarget, target: ipId });
             }
           }
         });
       }
 
-      // 4. Data Fusion: Mail Exchange Routing
       if (mxRes.Answer) {
         mxRes.Answer.forEach((record: any) => {
-          const mxData = record.data.split(' ')[1] || record.data; // Strip priority
+          const mxData = record.data.split(' ')[1] || record.data;
           const mxId = `MX: ${mxData}`;
           if (!liveNodes.find(n => n.id === mxId)) {
             liveNodes.push({ id: mxId, name: mxData, type: 'MAIL_SERVER', group: 3, val: 6 });
@@ -85,7 +86,6 @@ export default function NexusGraph() {
         });
       }
 
-      // 5. Data Fusion: Name Server Architecture
       if (nsRes.Answer) {
         nsRes.Answer.forEach((record: any) => {
           const nsId = `NS: ${record.data}`;
@@ -96,7 +96,6 @@ export default function NexusGraph() {
         });
       }
 
-      // 6. Security/Verification Records (SPF/DMARC)
       if (txtRes.Answer) {
         txtRes.Answer.forEach((record: any) => {
           if (record.data.includes('v=spf') || record.data.includes('v=DMARC')) {
@@ -110,7 +109,6 @@ export default function NexusGraph() {
       }
 
       setGraphData({ nodes: liveNodes, links: liveLinks });
-
     } catch (error) {
       console.error("Ontology Construction Failed:", error);
     } finally {
@@ -118,13 +116,57 @@ export default function NexusGraph() {
     }
   };
 
-  const handleNodeClick = (node: any) => {
+  // RECURSIVE EXPANSION ENGINE
+  const expandNode = async (node: any) => {
+    if (node.type !== 'IPv4_HOST' || node.expanded) return;
+    
+    setIsExpanding(true);
+    try {
+      const res = await fetch(`https://ipwho.is/${node.name}`);
+      const data = await res.json();
+      
+      if (data.success) {
+        const newNodes = [...graphData.nodes];
+        const newLinks = [...graphData.links];
+
+        // Mark parent as expanded
+        const parentIdx = newNodes.findIndex(n => n.id === node.id);
+        if (parentIdx > -1) newNodes[parentIdx].expanded = true;
+
+        // Spawn ISP Node
+        const ispId = `ISP_${data.connection.isp}`;
+        if (!newNodes.find(n => n.id === ispId)) {
+          newNodes.push({ id: ispId, name: data.connection.isp, type: 'ISP_PROVIDER', group: 6, val: 5 });
+        }
+        newLinks.push({ source: node.id, target: ispId });
+
+        // Spawn Geo Node
+        const geoId = `GEO_${data.city}_${data.country_code}`;
+        if (!newNodes.find(n => n.id === geoId)) {
+          newNodes.push({ id: geoId, name: `${data.city}, ${data.country_code}`, type: 'GEO_LOCATION', group: 7, val: 5 });
+        }
+        newLinks.push({ source: node.id, target: geoId });
+
+        setGraphData({ nodes: newNodes, links: newLinks });
+      }
+    } catch (e) {
+      console.error("Expansion trace failed", e);
+    } finally {
+      setIsExpanding(false);
+    }
+  };
+
+  const handleNodeClick = useCallback((node: any) => {
     setActiveNode(node);
     if (fgRef.current) {
       fgRef.current.centerAt(node.x, node.y, 1000);
       fgRef.current.zoom(3, 1000);
     }
-  };
+    // Automatically trigger deep trace on IPs
+    if (node.type === 'IPv4_HOST' && !node.expanded) {
+      expandNode(node);
+    }
+  }, [graphData]);
 
   const getNodeColor = (group: number) => {
     switch(group) {
@@ -133,6 +175,8 @@ export default function NexusGraph() {
       case 3: return '#ff3366'; // MX (Red)
       case 4: return '#9933ff'; // NS (Purple)
       case 5: return '#555555'; // TXT/Sec (Gray)
+      case 6: return '#ff00aa'; // ISP (Pink)
+      case 7: return '#3388ff'; // Geo (Blue)
       default: return '#ffffff';
     }
   };
@@ -144,6 +188,8 @@ export default function NexusGraph() {
       case 'MAIL_SERVER': return <Mail size={14} className="text-[#ff3366]" />;
       case 'NAME_SERVER': return <Network size={14} className="text-[#9933ff]" />;
       case 'SEC_POLICY': return <ShieldAlert size={14} className="text-gray-400" />;
+      case 'ISP_PROVIDER': return <Share2 size={14} className="text-[#ff00aa]" />;
+      case 'GEO_LOCATION': return <Crosshair size={14} className="text-[#3388ff]" />;
       default: return <Share2 size={14} />;
     }
   };
@@ -151,7 +197,6 @@ export default function NexusGraph() {
   return (
     <div className="h-screen w-screen bg-[#020202] text-[#e5e5e5] font-mono flex flex-col box-border overflow-hidden select-none relative">
       
-      {/* COMMAND OVERLAY */}
       <header className="absolute top-0 left-0 w-full z-10 p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pointer-events-none">
         <div className="flex flex-col gap-2 pointer-events-auto">
           <Link href="/" className="flex items-center gap-2 text-gray-500 hover:text-[#00ffcc] transition-colors w-max">
@@ -163,12 +208,14 @@ export default function NexusGraph() {
               <h1 className="text-sm font-bold tracking-[0.3em] uppercase text-white shadow-[#9933ff] drop-shadow-md">
                 NEXUS // Ontology Engine
               </h1>
-              <div className="text-[8px] text-[#00ffcc] tracking-widest mt-0.5">LIVE INFRASTRUCTURE MAPPING</div>
+              <div className="text-[8px] text-[#00ffcc] tracking-widest mt-0.5 flex items-center gap-2">
+                LIVE INFRASTRUCTURE MAPPING 
+                {isExpanding && <span className="text-[#ff3366] animate-pulse flex items-center gap-1"><Zap size={8}/> DEEP TRACING</span>}
+              </div>
             </div>
           </div>
         </div>
         
-        {/* LIVE TARGETING INPUT */}
         <div className="flex items-center gap-2 bg-black/80 border border-[#333] p-2 backdrop-blur-md pointer-events-auto w-full md:w-auto">
           <input 
             type="text" 
@@ -188,7 +235,6 @@ export default function NexusGraph() {
         </div>
       </header>
 
-      {/* THE PHYSICS ENGINE */}
       <div className="flex-grow w-full h-full cursor-crosshair" ref={containerRef}>
         {graphData.nodes.length > 0 ? (
           <ForceGraph2D
@@ -199,7 +245,7 @@ export default function NexusGraph() {
             nodeLabel="name"
             nodeColor={(node: any) => getNodeColor(node.group)}
             nodeRelSize={5}
-            linkColor={() => 'rgba(255,255,255,0.1)'}
+            linkColor={() => 'rgba(255,255,255,0.15)'}
             linkWidth={1.5}
             linkDirectionalParticles={2}
             linkDirectionalParticleWidth={2}
@@ -215,7 +261,6 @@ export default function NexusGraph() {
         )}
       </div>
 
-      {/* ACTIVE TELEMETRY PANEL */}
       <AnimatePresence>
         {activeNode && (
           <motion.div 
@@ -245,9 +290,15 @@ export default function NexusGraph() {
               )}
 
               <div className="grid grid-cols-2 gap-2 text-[9px] tracking-widest text-gray-400">
-                <div className="flex flex-col"><span className="text-[#555]">NODE_CLASS</span><span className="text-white">PUBLIC_INFRA</span></div>
+                <div className="flex flex-col"><span className="text-[#555]">NODE_CLASS</span><span className="text-white uppercase">{activeNode.type}</span></div>
                 <div className="flex flex-col"><span className="text-[#555]">STATUS</span><span className="text-[#00ffcc] animate-pulse">RESOLVED</span></div>
               </div>
+
+              {activeNode.type === 'IPv4_HOST' && !activeNode.expanded && (
+                <div className="mt-2 text-[8px] text-[#ffaa00] border border-[#ffaa00]/30 bg-[#ffaa00]/10 p-2 text-center uppercase tracking-widest flex items-center justify-center gap-2">
+                  <Loader2 size={10} className="animate-spin" /> EXECUTING DEEP TRACE...
+                </div>
+              )}
             </div>
           </motion.div>
         )}
