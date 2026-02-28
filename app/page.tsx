@@ -7,13 +7,29 @@ import dynamic from 'next/dynamic';
 
 const Globe = dynamic(() => import('react-globe.gl'), { ssr: false });
 
+// GEOPOLITICAL TARGET CAPITALS & DATACENTERS
+const THREAT_NODES = [
+  { name: 'Washington DC, USA', lat: 38.8951, lng: -77.0364 },
+  { name: 'Silicon Valley, USA', lat: 37.3875, lng: -122.0575 },
+  { name: 'Beijing, China', lat: 39.9042, lng: 116.4074 },
+  { name: 'Shenzhen, China', lat: 22.5431, lng: 114.0579 },
+  { name: 'Moscow, Russia', lat: 55.7558, lng: 37.6173 },
+  { name: 'St. Petersburg, Russia', lat: 59.9311, lng: 30.3609 },
+  { name: 'Tehran, Iran', lat: 35.6892, lng: 51.3890 },
+  { name: 'Pyongyang, North Korea', lat: 39.0392, lng: 125.7625 },
+  { name: 'Frankfurt, Germany', lat: 50.1109, lng: 8.6821 },
+  { name: 'London, UK', lat: 51.5074, lng: -0.1278 },
+  { name: 'Sao Paulo, Brazil', lat: -23.5505, lng: -46.6333 },
+  { name: 'Mumbai, India', lat: 19.0760, lng: 72.8777 },
+  { name: 'Tel Aviv, Israel', lat: 32.0853, lng: 34.7818 }
+];
+
 export default function Dashboard() {
   const [btcHistory, setBtcHistory] = useState<any[]>([]);
   const [currentBtc, setCurrentBtc] = useState(0);
   const [cveLogs, setCveLogs] = useState<any[]>([]);
   const [sysTime, setSysTime] = useState('');
   
-  // Static dimensions for the globe to prevent layout shifting on scroll
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const globeContainerRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<any>();
@@ -32,7 +48,6 @@ export default function Dashboard() {
   ]);
 
   useEffect(() => {
-    // Set initial dimensions based on container, but allow it to be flexible
     if (globeContainerRef.current) {
       setDimensions({ width: globeContainerRef.current.clientWidth, height: globeContainerRef.current.clientHeight || 500 });
     }
@@ -68,16 +83,32 @@ export default function Dashboard() {
       setThreatMatrix(prev => prev.map(t => ({ ...t, A: Math.max(40, Math.min(140, t.A + (Math.random() * 10 - 5))) })));
     }, 1000);
 
+    // =========================================================
+    // THE STOCHASTIC THREAT ENGINE (REALISTIC GEO-TARGETING)
+    // =========================================================
     const arcInterval = setInterval(() => {
+      // Pick random source and destination from known global hubs
+      const src = THREAT_NODES[Math.floor(Math.random() * THREAT_NODES.length)];
+      let dst = THREAT_NODES[Math.floor(Math.random() * THREAT_NODES.length)];
+      while (src.name === dst.name) {
+        dst = THREAT_NODES[Math.floor(Math.random() * THREAT_NODES.length)];
+      }
+
+      // Add a tiny bit of jitter so attacks hit different datacenters within the country
+      const jitter = () => (Math.random() * 4) - 2; 
+
       const newArc = {
-        startLat: (Math.random() - 0.5) * 180,
-        startLng: (Math.random() - 0.5) * 360,
-        endLat: (Math.random() - 0.5) * 180,
-        endLng: (Math.random() - 0.5) * 360,
-        color: Math.random() > 0.5 ? ['#ff3366', '#ffaa00'] : ['#00ffcc', '#9933ff']
+        id: Math.random().toString(36),
+        startLat: src.lat + jitter(),
+        startLng: src.lng + jitter(),
+        endLat: dst.lat + jitter(),
+        endLng: dst.lng + jitter(),
+        // Red/Orange for heavy DDoS, Cyan/Purple for exfiltration probes
+        color: Math.random() > 0.4 ? ['#ff3366', '#ffaa00'] : ['#00ffcc', '#9933ff'] 
       };
-      setArcsData(prev => [...prev.slice(-15), newArc]);
-    }, 1500);
+      
+      setArcsData(prev => [...prev.slice(-25), newArc]); // Increased density to 25 simultaneous arcs
+    }, 400); // Firing much faster for kinetic effect
 
     return () => {
       clearInterval(macroInterval);
@@ -90,16 +121,32 @@ export default function Dashboard() {
   useEffect(() => {
     const handleTerminalCommand = async (e: any) => {
       const { command, target } = e.detail;
-      if ((command === 'whois' || command === 'intel') && target) {
+      if ((command === 'whois' || command === 'intel' || command === 'dossier') && target) {
+        
+        // Handle direct IP resolution bypassing
+        let targetIp = target;
+        const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(target);
+        
+        if (!isIp) {
+          try {
+            const dnsRes = await fetch(`https://dns.google/resolve?name=${target}&type=A`);
+            const dnsData = await dnsRes.json();
+            if (dnsData.Answer) {
+              targetIp = dnsData.Answer.filter((a: any) => a.type === 1)[0]?.data || target;
+            }
+          } catch(e) {}
+        }
+
         try {
-          const res = await fetch(`https://get.geojs.io/v1/ip/geo/${target}.json`);
+          const res = await fetch(`https://get.geojs.io/v1/ip/geo/${targetIp}.json`);
           if (res.ok) {
             const data = await res.json();
             const lon = parseFloat(data.longitude);
             const lat = parseFloat(data.latitude);
             
             setOsintTarget({
-              ip: target,
+              ip: targetIp,
+              domain: !isIp ? target : null,
               isp: data.organization_name || data.organization || 'UNKNOWN',
               city: data.city || 'UNKNOWN',
               country: data.country_code || 'UNKNOWN',
@@ -107,10 +154,12 @@ export default function Dashboard() {
               lng: lon
             });
             
-            setPointsData([{ lat, lng: lon, size: 1.5, color: '#00ffcc' }]);
+            // Render the glowing target spike
+            setPointsData([{ lat, lng: lon, size: 2.0, color: '#ffaa00' }]);
             
+            // Snap camera to target
             if (globeRef.current) {
-              globeRef.current.pointOfView({ lat, lng: lon, altitude: 1.5 }, 2000);
+              globeRef.current.pointOfView({ lat, lng: lon, altitude: 1.2 }, 1500);
             }
           }
         } catch (err) { console.error(err); }
@@ -124,14 +173,13 @@ export default function Dashboard() {
   useEffect(() => {
     if (globeRef.current) {
       globeRef.current.controls().autoRotate = true;
-      globeRef.current.controls().autoRotateSpeed = 0.5;
-      globeRef.current.controls().enableZoom = false; // Disable zoom scrolling to prevent getting trapped in the map
+      globeRef.current.controls().autoRotateSpeed = 0.8;
+      globeRef.current.controls().enableZoom = false; 
     }
   }, [dimensions]);
 
   return (
-    // REMOVED 'h-screen' and 'overflow-hidden'. REPLACED WITH 'min-h-screen' and 'overflow-y-auto'
-    <div className="min-h-screen w-full p-4 flex flex-col gap-6 bg-[#020202] text-[#e5e5e5] font-mono box-border select-none crt-overlay overflow-x-hidden overflow-y-auto custom-scrollbar">
+    <div className="min-h-screen w-full p-4 flex flex-col gap-6 bg-[#020202] text-[#e5e5e5] font-mono box-border select-none crt-overlay">
       
       <header className="flex-none flex flex-col md:flex-row justify-between items-start md:items-end border-b border-[#333] pb-4 z-10 bg-[#020202] gap-4">
         <div className="flex items-center gap-3">
@@ -154,7 +202,6 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* CHANGED GRID TO STACK ON SMALL SCREENS (lg:grid-cols-12) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow z-0">
         
         {/* LEFT FLANK */}
@@ -193,12 +240,12 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* CENTER COLUMN: 3D WEBGL GLOBE (FIXED HEIGHT) */}
+        {/* CENTER COLUMN: UPGRADED 3D WEBGL GLOBE */}
         <div className="col-span-1 lg:col-span-6 border border-[#222] bg-[#020202] relative flex flex-col min-h-[500px] lg:min-h-[700px] shadow-[inset_0_0_80px_rgba(0,0,0,0.9)] rounded-sm" ref={globeContainerRef}>
           <div className="absolute top-4 left-4 flex items-center gap-2 z-10 bg-black/80 p-2 border border-[#333] backdrop-blur-sm">
-            <Crosshair size={16} className={osintTarget ? "text-[#00ffcc] animate-pulse" : "text-[#555]"} />
-            <span className={`text-xs uppercase tracking-widest font-bold ${osintTarget ? "text-[#00ffcc]" : "text-[#555]"}`}>
-              {osintTarget ? `SAT_LOCK: ${osintTarget.ip}` : 'KINETIC TOPOGRAPHY // 3D RENDER ENGINE'}
+            <Crosshair size={16} className={osintTarget ? "text-[#ffaa00] animate-pulse" : "text-[#555]"} />
+            <span className={`text-xs uppercase tracking-widest font-bold ${osintTarget ? "text-[#ffaa00]" : "text-[#555]"}`}>
+              {osintTarget ? `SAT_LOCK: ${osintTarget.domain || osintTarget.ip}` : 'STOCHASTIC THREAT SIMULATOR // ACTIVE SCAN'}
             </span>
           </div>
           
@@ -208,16 +255,20 @@ export default function Dashboard() {
                 ref={globeRef}
                 width={dimensions.width}
                 height={dimensions.height}
-                globeImageUrl="//unpkg.com/three-globe/example/img/earth-dark.jpg"
+                // High-fidelity topographical earth maps
+                globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
+                bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
                 backgroundColor="rgba(0,0,0,0)"
                 arcsData={arcsData}
                 arcColor="color"
                 arcDashLength={0.4}
                 arcDashGap={0.2}
-                arcDashAnimateTime={1500}
+                arcDashInitialGap={() => Math.random()}
+                arcDashAnimateTime={1200}
+                arcStroke={0.8}
                 pointsData={pointsData}
                 pointColor="color"
-                pointAltitude={0.1}
+                pointAltitude={0.15}
                 pointRadius="size"
                 pointsMerge={false}
                 atmosphereColor="#00ffcc"
@@ -252,8 +303,8 @@ export default function Dashboard() {
           </div>
 
           <div className="border border-[#222] bg-[#050505] p-4 relative flex flex-col min-h-[400px]">
-             <div className={`absolute top-0 left-0 w-full h-0.5 ${osintTarget ? 'bg-[#00ffcc]' : 'bg-gray-600'}`}></div>
-             <h2 className={`text-[12px] font-bold uppercase mb-6 flex items-center gap-2 flex-none ${osintTarget ? 'text-[#00ffcc]' : 'text-[#555]'}`}>
+             <div className={`absolute top-0 left-0 w-full h-0.5 ${osintTarget ? 'bg-[#ffaa00]' : 'bg-gray-600'}`}></div>
+             <h2 className={`text-[12px] font-bold uppercase mb-6 flex items-center gap-2 flex-none ${osintTarget ? 'text-[#ffaa00]' : 'text-[#555]'}`}>
               {osintTarget ? <Target size={14} className="animate-pulse" /> : <Cpu size={14} />} 
               {osintTarget ? 'OSINT_TARGET_LOCKED' : 'SYSTEM_DIAGNOSTICS'}
             </h2>
@@ -261,10 +312,16 @@ export default function Dashboard() {
             <div className="flex-grow">
               {osintTarget ? (
                 <div className="space-y-6">
-                  <div className="text-[#00ffcc] text-xl font-bold border-b border-[#333] pb-3 break-all">
+                  <div className="text-[#ffaa00] text-xl font-bold border-b border-[#333] pb-3 break-all">
                     {osintTarget.ip}
                   </div>
                   
+                  {osintTarget.domain && (
+                    <div className="text-gray-400 text-xs uppercase tracking-widest border border-[#222] p-2 bg-[#111] break-all">
+                      DOMAIN: {osintTarget.domain}
+                    </div>
+                  )}
+
                   <div className="bg-[#111] p-3 border border-[#222]">
                     <div className="text-[#555] text-[10px] uppercase tracking-widest mb-2 flex items-center gap-2"><AlertTriangle size={12}/> Network Topology</div>
                     <div className="text-gray-300 text-sm truncate" title={osintTarget.isp}>{osintTarget.isp}</div>
@@ -278,7 +335,7 @@ export default function Dashboard() {
                   <div className="space-y-3 pt-4 border-t border-[#222]">
                     <div className="flex justify-between text-[11px]"><span className="text-[#555]">LATITUDE:</span><span className="text-white font-mono">{osintTarget.lat.toFixed(5)}</span></div>
                     <div className="flex justify-between text-[11px]"><span className="text-[#555]">LONGITUDE:</span><span className="text-white font-mono">{osintTarget.lng.toFixed(5)}</span></div>
-                    <div className="flex justify-between text-[11px] pt-2"><span className="text-[#555]">STATUS:</span><span className="text-[#00ffcc] font-bold animate-pulse">ACTIVE TRACKING</span></div>
+                    <div className="flex justify-between text-[11px] pt-2"><span className="text-[#555]">STATUS:</span><span className="text-[#ffaa00] font-bold animate-pulse">ACTIVE TRACKING</span></div>
                   </div>
                 </div>
               ) : (
@@ -309,7 +366,7 @@ export default function Dashboard() {
         .crt-overlay::before {
           content: " ";
           display: block;
-          position: fixed; /* Changed to fixed so it covers the whole scrolling page */
+          position: fixed; 
           top: 0; left: 0; bottom: 0; right: 0;
           background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
           background-size: 100% 4px;
