@@ -5,7 +5,6 @@ import { ResponsiveContainer, AreaChart, Area, Tooltip, RadarChart, PolarGrid, P
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 
-// Force client-side rendering for the WebGL engine
 const Globe = dynamic(() => import('react-globe.gl'), { ssr: false });
 
 export default function Dashboard() {
@@ -13,14 +12,14 @@ export default function Dashboard() {
   const [currentBtc, setCurrentBtc] = useState(0);
   const [cveLogs, setCveLogs] = useState<any[]>([]);
   const [sysTime, setSysTime] = useState('');
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  
+  // Static dimensions for the globe to prevent layout shifting on scroll
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const globeContainerRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<any>();
   
-  // CYBER WARFARE DATA ARRAYS
   const [arcsData, setArcsData] = useState<any[]>([]);
   const [pointsData, setPointsData] = useState<any[]>([]);
-  
   const [osintTarget, setOsintTarget] = useState<any>(null); 
   
   const [threatMatrix, setThreatMatrix] = useState([
@@ -33,13 +32,13 @@ export default function Dashboard() {
   ]);
 
   useEffect(() => {
-    // Dynamic resizing for the 3D canvas
+    // Set initial dimensions based on container, but allow it to be flexible
     if (globeContainerRef.current) {
-      setDimensions({ width: globeContainerRef.current.clientWidth, height: globeContainerRef.current.clientHeight });
+      setDimensions({ width: globeContainerRef.current.clientWidth, height: globeContainerRef.current.clientHeight || 500 });
     }
     const handleResize = () => {
       if (globeContainerRef.current) {
-        setDimensions({ width: globeContainerRef.current.clientWidth, height: globeContainerRef.current.clientHeight });
+        setDimensions({ width: globeContainerRef.current.clientWidth, height: globeContainerRef.current.clientHeight || 500 });
       }
     };
     window.addEventListener('resize', handleResize);
@@ -69,7 +68,6 @@ export default function Dashboard() {
       setThreatMatrix(prev => prev.map(t => ({ ...t, A: Math.max(40, Math.min(140, t.A + (Math.random() * 10 - 5))) })));
     }, 1000);
 
-    // Generate random background cyber-attacks for the 3D globe
     const arcInterval = setInterval(() => {
       const newArc = {
         startLat: (Math.random() - 0.5) * 180,
@@ -89,7 +87,6 @@ export default function Dashboard() {
     };
   }, []);
 
-  // OVERWATCH KERNEL EVENT LISTENER
   useEffect(() => {
     const handleTerminalCommand = async (e: any) => {
       const { command, target } = e.detail;
@@ -110,10 +107,8 @@ export default function Dashboard() {
               lng: lon
             });
             
-            // Inject target into 3D space
             setPointsData([{ lat, lng: lon, size: 1.5, color: '#00ffcc' }]);
             
-            // Physically rotate the camera to face the target
             if (globeRef.current) {
               globeRef.current.pointOfView({ lat, lng: lon, altitude: 1.5 }, 2000);
             }
@@ -126,87 +121,83 @@ export default function Dashboard() {
     return () => window.removeEventListener('OVERWATCH_CMD_EXEC', handleTerminalCommand);
   }, []);
 
-  // Configure WebGL renderer on mount
   useEffect(() => {
     if (globeRef.current) {
       globeRef.current.controls().autoRotate = true;
       globeRef.current.controls().autoRotateSpeed = 0.5;
+      globeRef.current.controls().enableZoom = false; // Disable zoom scrolling to prevent getting trapped in the map
     }
   }, [dimensions]);
 
   return (
-    <div className="h-screen w-screen p-2 md:p-4 flex flex-col gap-3 bg-[#020202] text-[#e5e5e5] font-mono overflow-hidden box-border select-none crt-overlay">
+    // REMOVED 'h-screen' and 'overflow-hidden'. REPLACED WITH 'min-h-screen' and 'overflow-y-auto'
+    <div className="min-h-screen w-full p-4 flex flex-col gap-6 bg-[#020202] text-[#e5e5e5] font-mono box-border select-none crt-overlay overflow-x-hidden overflow-y-auto custom-scrollbar">
       
-      {/* HEADER */}
-      <header className="flex-none flex justify-between items-end border-b border-[#333] pb-2 z-10 bg-[#020202]">
+      <header className="flex-none flex flex-col md:flex-row justify-between items-start md:items-end border-b border-[#333] pb-4 z-10 bg-[#020202] gap-4">
         <div className="flex items-center gap-3">
-          <GlobeIcon className="text-[#00ffcc] animate-pulse" size={24} />
+          <GlobeIcon className="text-[#00ffcc] animate-pulse" size={28} />
           <div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-widest text-white uppercase text-shadow-glow flex items-center gap-3">
+            <h1 className="text-xl md:text-3xl font-bold tracking-widest text-white uppercase text-shadow-glow flex items-center gap-3">
               OASIS // OMNI-NODE
-              <div className="hidden md:flex gap-2 ml-2">
-                <Link href="/recon" className="flex items-center gap-2 bg-[#ffaa00]/10 border border-[#ffaa00]/50 text-[#ffaa00] px-3 py-1 text-[10px] tracking-widest uppercase hover:bg-[#ffaa00] hover:text-black transition-all rounded-sm shadow-[0_0_10px_rgba(255,170,0,0.2)]">
-                  <Terminal size={12} /> Recon Node
-                </Link>
-                <Link href="/nexus" className="flex items-center gap-2 bg-[#9933ff]/10 border border-[#9933ff]/50 text-[#9933ff] px-3 py-1 text-[10px] tracking-widest uppercase hover:bg-[#9933ff] hover:text-white transition-all rounded-sm shadow-[0_0_10px_rgba(153,51,255,0.2)]">
-                  <Share2 size={12} /> Nexus Graph
-                </Link>
-              </div>
             </h1>
-            <div className="text-[9px] text-gray-500 tracking-[0.4em] uppercase mt-1">Distributed Intelligence Fusion Matrix</div>
+            <div className="text-[10px] text-gray-500 tracking-[0.4em] uppercase mt-1">Distributed Intelligence Fusion Matrix</div>
           </div>
         </div>
-        <div className="text-right hidden md:block">
-          <div className="text-[10px] tracking-widest text-[#00ffcc]">SYS_CLOCK: {sysTime}</div>
-          <div className="text-[9px] text-gray-500 tracking-widest">SAT_UPLINK: ACTIVE | ENCRYPTION: AES-256</div>
+        
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+          <Link href="/recon" className="flex items-center justify-center gap-2 bg-[#ffaa00]/10 border border-[#ffaa00]/50 text-[#ffaa00] px-4 py-2 text-[10px] tracking-widest uppercase hover:bg-[#ffaa00] hover:text-black transition-all rounded-sm shadow-[0_0_10px_rgba(255,170,0,0.2)] flex-grow md:flex-grow-0">
+            <Terminal size={14} /> Recon Node
+          </Link>
+          <Link href="/nexus" className="flex items-center justify-center gap-2 bg-[#9933ff]/10 border border-[#9933ff]/50 text-[#9933ff] px-4 py-2 text-[10px] tracking-widest uppercase hover:bg-[#9933ff] hover:text-white transition-all rounded-sm shadow-[0_0_10px_rgba(153,51,255,0.2)] flex-grow md:flex-grow-0">
+            <Share2 size={14} /> Nexus Graph
+          </Link>
         </div>
       </header>
 
-      <div className="grid grid-cols-12 gap-3 flex-grow min-h-0 relative z-0">
+      {/* CHANGED GRID TO STACK ON SMALL SCREENS (lg:grid-cols-12) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow z-0">
         
         {/* LEFT FLANK */}
-        <div className="col-span-4 lg:col-span-3 flex flex-col gap-3 h-full min-h-0">
-          <div className="border border-[#222] bg-[#050505] p-2 relative flex-none h-[40%] flex flex-col">
+        <div className="col-span-1 lg:col-span-3 flex flex-col gap-6">
+          <div className="border border-[#222] bg-[#050505] p-4 relative flex flex-col min-h-[300px]">
             <div className="absolute top-0 left-0 w-full h-0.5 bg-[#ff3366]"></div>
-            <h2 className="text-[#555] text-[10px] font-bold uppercase mb-1 flex items-center gap-2">
-              <RadarIcon size={12} className="text-[#ff3366]" /> Global Threat Matrix
+            <h2 className="text-[#555] text-[12px] font-bold uppercase mb-4 flex items-center gap-2">
+              <RadarIcon size={14} className="text-[#ff3366]" /> Global Threat Matrix
             </h2>
             <div className="flex-grow w-full h-full -ml-4">
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart cx="50%" cy="50%" outerRadius="65%" data={threatMatrix}>
                   <PolarGrid stroke="#333" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#888', fontSize: 8 }} />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#888', fontSize: 10 }} />
                   <Radar name="Threat Level" dataKey="A" stroke="#ff3366" fill="#ff3366" fillOpacity={0.3} />
                 </RadarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          <div className="border border-[#222] bg-[#050505] p-2 relative flex-grow flex flex-col min-h-0">
+          <div className="border border-[#222] bg-[#050505] p-4 relative flex flex-col h-[400px]">
             <div className="absolute top-0 left-0 w-full h-0.5 bg-[#ffaa00]"></div>
-            <h2 className="text-[#555] text-[10px] font-bold uppercase mb-2 flex items-center gap-2 flex-none">
-              <Terminal size={12} className="text-[#ffaa00]" /> LIVE_CVE_INTERCEPT
+            <h2 className="text-[#555] text-[12px] font-bold uppercase mb-4 flex items-center gap-2 flex-none">
+              <Terminal size={14} className="text-[#ffaa00]" /> LIVE_CVE_INTERCEPT
             </h2>
-            <div className="relative flex-grow min-h-0 w-full">
-              <div className="absolute inset-0 overflow-y-auto custom-scrollbar pr-2 pb-6">
-                {cveLogs.map((repo, i) => (
-                  <div key={i} className="mb-3 border-b border-[#111] pb-2 last:border-0">
-                    <div className="text-[#ffaa00] text-[10px] font-bold break-all">[{repo.name.toUpperCase()}]</div>
-                    <div className="text-gray-400 text-[8px] mt-1 leading-tight tracking-tight">
-                      {repo.description ? repo.description.substring(0, 80) + '...' : 'NO_PAYLOAD_DESCRIPTION_PROVIDED'}
-                    </div>
+            <div className="overflow-y-auto custom-scrollbar pr-2 flex-grow">
+              {cveLogs.map((repo, i) => (
+                <div key={i} className="mb-4 border-b border-[#111] pb-3 last:border-0">
+                  <div className="text-[#ffaa00] text-[11px] font-bold break-all">[{repo.name.toUpperCase()}]</div>
+                  <div className="text-gray-400 text-[10px] mt-2 leading-tight tracking-tight">
+                    {repo.description ? repo.description : 'NO_PAYLOAD_DESCRIPTION_PROVIDED'}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* CENTER COLUMN: 3D WEBGL GLOBE */}
-        <div className="col-span-4 lg:col-span-6 border border-[#222] bg-[#020202] relative flex flex-col h-full min-h-0 overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.9)] rounded-sm" ref={globeContainerRef}>
-          <div className="absolute top-3 left-3 flex items-center gap-2 z-10 bg-black/80 p-1.5 border border-[#333] backdrop-blur-sm">
-            <Crosshair size={14} className={osintTarget ? "text-[#00ffcc] animate-pulse" : "text-[#555]"} />
-            <span className={`text-[10px] uppercase tracking-widest ${osintTarget ? "text-[#00ffcc]" : "text-[#555]"}`}>
+        {/* CENTER COLUMN: 3D WEBGL GLOBE (FIXED HEIGHT) */}
+        <div className="col-span-1 lg:col-span-6 border border-[#222] bg-[#020202] relative flex flex-col min-h-[500px] lg:min-h-[700px] shadow-[inset_0_0_80px_rgba(0,0,0,0.9)] rounded-sm" ref={globeContainerRef}>
+          <div className="absolute top-4 left-4 flex items-center gap-2 z-10 bg-black/80 p-2 border border-[#333] backdrop-blur-sm">
+            <Crosshair size={16} className={osintTarget ? "text-[#00ffcc] animate-pulse" : "text-[#555]"} />
+            <span className={`text-xs uppercase tracking-widest font-bold ${osintTarget ? "text-[#00ffcc]" : "text-[#555]"}`}>
               {osintTarget ? `SAT_LOCK: ${osintTarget.ip}` : 'KINETIC TOPOGRAPHY // 3D RENDER ENGINE'}
             </span>
           </div>
@@ -234,16 +225,15 @@ export default function Dashboard() {
               />
             )}
           </div>
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[rgba(0,255,204,0.02)] to-transparent h-8 w-full animate-[scan_4s_linear_infinite] pointer-events-none border-b border-[#00ffcc]/10"></div>
         </div>
 
         {/* RIGHT FLANK */}
-        <div className="col-span-4 lg:col-span-3 flex flex-col gap-3 h-full min-h-0">
-          <div className="border border-[#222] bg-[#050505] p-2 relative flex-none h-[35%] flex flex-col">
+        <div className="col-span-1 lg:col-span-3 flex flex-col gap-6">
+          <div className="border border-[#222] bg-[#050505] p-4 relative flex flex-col min-h-[300px]">
             <div className="absolute top-0 left-0 w-full h-0.5 bg-[#00ffcc]"></div>
-            <h2 className="text-[#555] text-[10px] font-bold uppercase mb-2 flex justify-between items-center">
-              <span className="flex items-center gap-2"><Activity size={12} className="text-[#00ffcc]" /> FININT: BTC</span>
-              <span className="text-white text-sm font-light">${currentBtc.toFixed(2)}</span>
+            <h2 className="text-[#555] text-[12px] font-bold uppercase mb-4 flex justify-between items-center">
+              <span className="flex items-center gap-2"><Activity size={14} className="text-[#00ffcc]" /> FININT: BTC</span>
+              <span className="text-white text-base font-light">${currentBtc.toFixed(2)}</span>
             </h2>
             <div className="flex-grow w-full h-full -ml-4">
                <ResponsiveContainer width="100%" height="100%">
@@ -261,69 +251,65 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="border border-[#222] bg-[#050505] p-3 relative flex-grow flex flex-col min-h-0">
+          <div className="border border-[#222] bg-[#050505] p-4 relative flex flex-col min-h-[400px]">
              <div className={`absolute top-0 left-0 w-full h-0.5 ${osintTarget ? 'bg-[#00ffcc]' : 'bg-gray-600'}`}></div>
-             <h2 className={`text-[10px] font-bold uppercase mb-4 flex items-center gap-2 flex-none ${osintTarget ? 'text-[#00ffcc]' : 'text-[#555]'}`}>
-              {osintTarget ? <Target size={12} className="animate-pulse" /> : <Cpu size={12} />} 
+             <h2 className={`text-[12px] font-bold uppercase mb-6 flex items-center gap-2 flex-none ${osintTarget ? 'text-[#00ffcc]' : 'text-[#555]'}`}>
+              {osintTarget ? <Target size={14} className="animate-pulse" /> : <Cpu size={14} />} 
               {osintTarget ? 'OSINT_TARGET_LOCKED' : 'SYSTEM_DIAGNOSTICS'}
             </h2>
             
-            <div className="relative flex-grow min-h-0 w-full">
-              <div className="absolute inset-0 overflow-y-auto custom-scrollbar pr-2 pb-8">
-                {osintTarget ? (
-                  <div className="space-y-4">
-                    <div className="text-[#00ffcc] text-lg font-bold border-b border-[#333] pb-2 break-all">
-                      {osintTarget.ip}
-                    </div>
-                    
-                    <div className="bg-[#111] p-2 border border-[#222]">
-                      <div className="text-[#555] text-[8px] uppercase tracking-widest mb-1 flex items-center gap-2"><AlertTriangle size={10}/> Network Topology</div>
-                      <div className="text-gray-400 text-xs truncate" title={osintTarget.isp}>{osintTarget.isp}</div>
-                    </div>
+            <div className="flex-grow">
+              {osintTarget ? (
+                <div className="space-y-6">
+                  <div className="text-[#00ffcc] text-xl font-bold border-b border-[#333] pb-3 break-all">
+                    {osintTarget.ip}
+                  </div>
+                  
+                  <div className="bg-[#111] p-3 border border-[#222]">
+                    <div className="text-[#555] text-[10px] uppercase tracking-widest mb-2 flex items-center gap-2"><AlertTriangle size={12}/> Network Topology</div>
+                    <div className="text-gray-300 text-sm truncate" title={osintTarget.isp}>{osintTarget.isp}</div>
+                  </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-[9px] tracking-wider text-gray-400">
-                      <div className="flex flex-col bg-[#111] p-2 border border-[#222]"><span className="text-[#555] mb-1">CITY</span><span className="text-white truncate">{osintTarget.city}</span></div>
-                      <div className="flex flex-col bg-[#111] p-2 border border-[#222]"><span className="text-[#555] mb-1">COUNTRY</span><span className="text-white">{osintTarget.country}</span></div>
-                    </div>
-                    
-                    <div className="space-y-2 pt-2">
-                      <div className="flex justify-between text-[9px] border-b border-[#111] pb-1"><span className="text-[#555]">LATITUDE:</span><span className="text-white font-mono">{osintTarget.lat.toFixed(5)}</span></div>
-                      <div className="flex justify-between text-[9px] border-b border-[#111] pb-1"><span className="text-[#555]">LONGITUDE:</span><span className="text-white font-mono">{osintTarget.lng.toFixed(5)}</span></div>
-                      <div className="flex justify-between text-[9px] pt-1"><span className="text-[#555]">STATUS:</span><span className="text-[#00ffcc] animate-pulse">ACTIVE TRACKING</span></div>
-                    </div>
+                  <div className="grid grid-cols-2 gap-3 text-[10px] tracking-wider text-gray-400">
+                    <div className="flex flex-col bg-[#111] p-3 border border-[#222]"><span className="text-[#555] mb-1">CITY</span><span className="text-white text-sm truncate">{osintTarget.city}</span></div>
+                    <div className="flex flex-col bg-[#111] p-3 border border-[#222]"><span className="text-[#555] mb-1">COUNTRY</span><span className="text-white text-sm">{osintTarget.country}</span></div>
                   </div>
-                ) : (
-                  <div className="space-y-4 flex flex-col justify-center mt-4">
-                    <div>
-                      <div className="flex justify-between text-[9px] text-gray-500 mb-1"><span>MEMORY_HEAP</span><span>84%</span></div>
-                      <div className="w-full bg-[#111] h-1 rounded-none"><div className="bg-[#ffaa00] h-full w-[84%]"></div></div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-[9px] text-gray-500 mb-1"><span>SENSOR_ARRAY</span><span>AWAITING KERNEL INPUT</span></div>
-                      <div className="w-full bg-[#111] h-1 rounded-none"><div className="bg-gray-700 h-full w-[100%]"></div></div>
-                    </div>
-                    <div className="text-[8px] text-center text-gray-600 mt-6 animate-pulse border border-[#222] p-2 bg-[#111]">USE THE KERNEL TERMINAL TO INITIATE A TARGET LOCK</div>
+                  
+                  <div className="space-y-3 pt-4 border-t border-[#222]">
+                    <div className="flex justify-between text-[11px]"><span className="text-[#555]">LATITUDE:</span><span className="text-white font-mono">{osintTarget.lat.toFixed(5)}</span></div>
+                    <div className="flex justify-between text-[11px]"><span className="text-[#555]">LONGITUDE:</span><span className="text-white font-mono">{osintTarget.lng.toFixed(5)}</span></div>
+                    <div className="flex justify-between text-[11px] pt-2"><span className="text-[#555]">STATUS:</span><span className="text-[#00ffcc] font-bold animate-pulse">ACTIVE TRACKING</span></div>
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="space-y-6 flex flex-col justify-center mt-8">
+                  <div>
+                    <div className="flex justify-between text-[10px] text-gray-500 mb-2"><span>MEMORY_HEAP</span><span>84%</span></div>
+                    <div className="w-full bg-[#111] h-1.5 rounded-none"><div className="bg-[#ffaa00] h-full w-[84%]"></div></div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[10px] text-gray-500 mb-2"><span>SENSOR_ARRAY</span><span>AWAITING KERNEL INPUT</span></div>
+                    <div className="w-full bg-[#111] h-1.5 rounded-none"><div className="bg-gray-700 h-full w-[100%]"></div></div>
+                  </div>
+                  <div className="text-[10px] text-center text-gray-600 mt-8 animate-pulse border border-[#222] p-4 bg-[#111]">USE THE KERNEL TERMINAL TO INITIATE A TARGET LOCK</div>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
       <style dangerouslySetInnerHTML={{__html: `
-        @keyframes scan { 0% { transform: translateY(-100%); } 100% { transform: translateY(800px); } }
         .text-shadow-glow { text-shadow: 0 0 10px rgba(0, 255, 204, 0.3); }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555; }
         
-        /* THE CRT EFFECT */
         .crt-overlay::before {
           content: " ";
           display: block;
-          position: absolute;
+          position: fixed; /* Changed to fixed so it covers the whole scrolling page */
           top: 0; left: 0; bottom: 0; right: 0;
           background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
           background-size: 100% 4px;
@@ -334,4 +320,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
