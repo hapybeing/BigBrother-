@@ -1,36 +1,37 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
-import { Activity, Globe as GlobeIcon, Cpu, Terminal, Crosshair, Radar as RadarIcon, Target, Share2, AlertTriangle } from 'lucide-react';
-import { ResponsiveContainer, AreaChart, Area, Tooltip, RadarChart, PolarGrid, PolarAngleAxis, Radar, YAxis } from 'recharts';
+import { Activity, Globe as GlobeIcon, Cpu, Terminal, Crosshair, Radar as RadarIcon, Target, Share2, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { ResponsiveContainer, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, Radar, YAxis } from 'recharts';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 
 const Globe = dynamic(() => import('react-globe.gl'), { ssr: false });
 
-// GEOPOLITICAL TARGET CAPITALS & DATACENTERS
-const THREAT_NODES = [
-  { name: 'Washington DC, USA', lat: 38.8951, lng: -77.0364 },
-  { name: 'Silicon Valley, USA', lat: 37.3875, lng: -122.0575 },
-  { name: 'Beijing, China', lat: 39.9042, lng: 116.4074 },
-  { name: 'Shenzhen, China', lat: 22.5431, lng: 114.0579 },
-  { name: 'Moscow, Russia', lat: 55.7558, lng: 37.6173 },
-  { name: 'St. Petersburg, Russia', lat: 59.9311, lng: 30.3609 },
-  { name: 'Tehran, Iran', lat: 35.6892, lng: 51.3890 },
-  { name: 'Pyongyang, North Korea', lat: 39.0392, lng: 125.7625 },
-  { name: 'Frankfurt, Germany', lat: 50.1109, lng: 8.6821 },
-  { name: 'London, UK', lat: 51.5074, lng: -0.1278 },
-  { name: 'Sao Paulo, Brazil', lat: -23.5505, lng: -46.6333 },
-  { name: 'Mumbai, India', lat: 19.0760, lng: 72.8777 },
-  { name: 'Tel Aviv, Israel', lat: 32.0853, lng: 34.7818 }
+const APT_HUBS = [
+  { name: 'Moscow', lat: 55.7558, lng: 37.6173, color: '#ff3366' },
+  { name: 'Beijing', lat: 39.9042, lng: 116.4074, color: '#ff3366' },
+  { name: 'Pyongyang', lat: 39.0392, lng: 125.7625, color: '#ff3366' },
+  { name: 'Tehran', lat: 35.6892, lng: 51.3890, color: '#ffaa00' },
+  { name: 'Maryland', lat: 39.1066, lng: -76.7772, color: '#00ffcc' }
+];
+
+const GLOBAL_TARGETS = [
+  { name: 'New York', lat: 40.7128, lng: -74.0060 },
+  { name: 'London', lat: 51.5074, lng: -0.1278 },
+  { name: 'Frankfurt', lat: 50.1109, lng: 8.6821 },
+  { name: 'Tokyo', lat: 35.6762, lng: 139.6503 },
+  { name: 'Mumbai', lat: 19.0760, lng: 72.8777 }
 ];
 
 export default function Dashboard() {
+  const [isMobile, setIsMobile] = useState(false);
+  const [defconLevel, setDefconLevel] = useState(4);
   const [btcHistory, setBtcHistory] = useState<any[]>([]);
   const [currentBtc, setCurrentBtc] = useState(0);
   const [cveLogs, setCveLogs] = useState<any[]>([]);
   const [sysTime, setSysTime] = useState('');
   
-  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const globeContainerRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<any>();
   
@@ -43,21 +44,28 @@ export default function Dashboard() {
     { subject: 'Malware', A: 98, fullMark: 150 },
     { subject: 'Phishing', A: 86, fullMark: 150 },
     { subject: 'Zero-Day', A: 99, fullMark: 150 },
-    { subject: 'Intrusion', A: 85, fullMark: 150 },
-    { subject: 'Exfil', A: 65, fullMark: 150 },
+    { subject: 'Intrusion', A: 85, fullMark: 150 }
   ]);
 
+  // HARDWARE DETECTION & RESPONSIVE RESIZING
   useEffect(() => {
-    if (globeContainerRef.current) {
-      setDimensions({ width: globeContainerRef.current.clientWidth, height: globeContainerRef.current.clientHeight || 500 });
-    }
     const handleResize = () => {
+      const mobileCheck = window.innerWidth < 1024;
+      setIsMobile(mobileCheck);
       if (globeContainerRef.current) {
-        setDimensions({ width: globeContainerRef.current.clientWidth, height: globeContainerRef.current.clientHeight || 500 });
+        setDimensions({ 
+          width: globeContainerRef.current.clientWidth, 
+          height: globeContainerRef.current.clientHeight || (mobileCheck ? 400 : 500) 
+        });
       }
     };
+    
+    handleResize(); // Initial check
     window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
+  useEffect(() => {
     const fetchHeavyTelemetry = async () => {
       try {
         const btcRes = await fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=25');
@@ -69,183 +77,129 @@ export default function Dashboard() {
         setBtcHistory(formattedBtc);
         setCurrentBtc(formattedBtc[formattedBtc.length - 1].price);
 
-        const cveRes = await fetch('https://api.github.com/search/repositories?q=CVE-2025+OR+CVE-2026&sort=updated&order=desc&per_page=15');
+        const cveRes = await fetch('https://api.github.com/search/repositories?q=CVE-2025+OR+CVE-2026&sort=updated&order=desc&per_page=10');
         const cveData = await cveRes.json();
-        if (cveData.items) setCveLogs(cveData.items);
+        if (cveData.items) {
+          setCveLogs(cveData.items);
+          // DEFCON LOGIC: If many recent CVEs exist, elevate threat level
+          if (cveData.items.length > 5) setDefconLevel(3);
+          if (cveData.items.some((i:any) => i.name.toLowerCase().includes('critical'))) setDefconLevel(2);
+        }
       } catch (e) { console.error(e); }
     };
 
     fetchHeavyTelemetry();
-    const macroInterval = setInterval(fetchHeavyTelemetry, 15000); 
+    const macroInterval = setInterval(fetchHeavyTelemetry, 30000); // Throttled to 30s
 
     const microInterval = setInterval(() => {
       setSysTime(new Date().toISOString());
       setThreatMatrix(prev => prev.map(t => ({ ...t, A: Math.max(40, Math.min(140, t.A + (Math.random() * 10 - 5))) })));
     }, 1000);
 
-    // =========================================================
-    // THE STOCHASTIC THREAT ENGINE (REALISTIC GEO-TARGETING)
-    // =========================================================
-    const arcInterval = setInterval(() => {
-      // Pick random source and destination from known global hubs
-      const src = THREAT_NODES[Math.floor(Math.random() * THREAT_NODES.length)];
-      let dst = THREAT_NODES[Math.floor(Math.random() * THREAT_NODES.length)];
-      while (src.name === dst.name) {
-        dst = THREAT_NODES[Math.floor(Math.random() * THREAT_NODES.length)];
-      }
+    // ADAPTIVE KINETIC ENGINE: Slower and fewer arcs on mobile to save CPU/Battery
+    const arcIntervalTime = isMobile ? 3000 : 1200;
+    const maxArcs = isMobile ? 5 : 15;
 
-      // Add a tiny bit of jitter so attacks hit different datacenters within the country
-      const jitter = () => (Math.random() * 4) - 2; 
+    const arcInterval = setInterval(() => {
+      const isAPTOrigin = Math.random() > 0.3;
+      const originNode = isAPTOrigin ? APT_HUBS[Math.floor(Math.random() * APT_HUBS.length)] : GLOBAL_TARGETS[Math.floor(Math.random() * GLOBAL_TARGETS.length)];
+      const targetNode = GLOBAL_TARGETS[Math.floor(Math.random() * GLOBAL_TARGETS.length)];
+      
+      if (originNode.name === targetNode.name) return;
 
       const newArc = {
-        id: Math.random().toString(36),
-        startLat: src.lat + jitter(),
-        startLng: src.lng + jitter(),
-        endLat: dst.lat + jitter(),
-        endLng: dst.lng + jitter(),
-        // Red/Orange for heavy DDoS, Cyan/Purple for exfiltration probes
-        color: Math.random() > 0.4 ? ['#ff3366', '#ffaa00'] : ['#00ffcc', '#9933ff'] 
+        startLat: originNode.lat, startLng: originNode.lng,
+        endLat: targetNode.lat, endLng: targetNode.lng,
+        color: (originNode as any).color ? [(originNode as any).color, '#ffffff'] : ['#9933ff', '#00ffcc']
       };
       
-      setArcsData(prev => [...prev.slice(-25), newArc]); // Increased density to 25 simultaneous arcs
-    }, 400); // Firing much faster for kinetic effect
+      setArcsData(prev => [...prev.slice(-(maxArcs - 1)), newArc]);
+    }, arcIntervalTime);
 
     return () => {
       clearInterval(macroInterval);
       clearInterval(microInterval);
       clearInterval(arcInterval);
-      window.removeEventListener('resize', handleResize);
     };
-  }, []);
+  }, [isMobile]);
 
   useEffect(() => {
     const handleTerminalCommand = async (e: any) => {
       const { command, target } = e.detail;
-      if ((command === 'whois' || command === 'intel' || command === 'dossier') && target) {
-        
-        // Handle direct IP resolution bypassing
-        let targetIp = target;
-        const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(target);
-        
-        if (!isIp) {
-          try {
-            const dnsRes = await fetch(`https://dns.google/resolve?name=${target}&type=A`);
-            const dnsData = await dnsRes.json();
-            if (dnsData.Answer) {
-              targetIp = dnsData.Answer.filter((a: any) => a.type === 1)[0]?.data || target;
-            }
-          } catch(e) {}
-        }
-
+      if ((command === 'whois' || command === 'intel') && target) {
         try {
-          const res = await fetch(`https://get.geojs.io/v1/ip/geo/${targetIp}.json`);
+          const res = await fetch(`https://get.geojs.io/v1/ip/geo/${target}.json`);
           if (res.ok) {
             const data = await res.json();
             const lon = parseFloat(data.longitude);
             const lat = parseFloat(data.latitude);
             
             setOsintTarget({
-              ip: targetIp,
-              domain: !isIp ? target : null,
-              isp: data.organization_name || data.organization || 'UNKNOWN',
-              city: data.city || 'UNKNOWN',
-              country: data.country_code || 'UNKNOWN',
-              lat: lat,
-              lng: lon
+              ip: target, isp: data.organization_name || data.organization || 'UNKNOWN',
+              city: data.city || 'UNKNOWN', country: data.country_code || 'UNKNOWN',
+              lat, lng: lon
             });
             
-            // Render the glowing target spike
-            setPointsData([{ lat, lng: lon, size: 2.0, color: '#ffaa00' }]);
+            setPointsData([{ lat, lng: lon, size: isMobile ? 1 : 2, color: '#00ffcc' }]);
             
-            // Snap camera to target
-            if (globeRef.current) {
-              globeRef.current.pointOfView({ lat, lng: lon, altitude: 1.2 }, 1500);
-            }
+            if (globeRef.current) globeRef.current.pointOfView({ lat, lng: lon, altitude: isMobile ? 1.8 : 1.2 }, 2000);
           }
         } catch (err) { console.error(err); }
       }
     };
-
     window.addEventListener('OVERWATCH_CMD_EXEC', handleTerminalCommand);
     return () => window.removeEventListener('OVERWATCH_CMD_EXEC', handleTerminalCommand);
-  }, []);
+  }, [isMobile]);
 
   useEffect(() => {
-    if (globeRef.current) {
+    if (globeRef.current && dimensions.width > 0) {
       globeRef.current.controls().autoRotate = true;
-      globeRef.current.controls().autoRotateSpeed = 0.8;
+      globeRef.current.controls().autoRotateSpeed = 0.5;
       globeRef.current.controls().enableZoom = false; 
     }
   }, [dimensions]);
 
   return (
-    <div className="min-h-screen w-full p-4 flex flex-col gap-6 bg-[#020202] text-[#e5e5e5] font-mono box-border select-none crt-overlay">
+    <div className="min-h-screen w-full p-2 md:p-4 flex flex-col gap-4 bg-[#020202] text-[#e5e5e5] font-mono box-border select-none crt-overlay overflow-x-hidden overflow-y-auto custom-scrollbar">
       
+      {/* HEADER WITH DYNAMIC DEFCON STATUS */}
       <header className="flex-none flex flex-col md:flex-row justify-between items-start md:items-end border-b border-[#333] pb-4 z-10 bg-[#020202] gap-4">
         <div className="flex items-center gap-3">
-          <GlobeIcon className="text-[#00ffcc] animate-pulse" size={28} />
+          <GlobeIcon className="text-[#00ffcc] animate-pulse hidden md:block" size={28} />
           <div>
-            <h1 className="text-xl md:text-3xl font-bold tracking-widest text-white uppercase text-shadow-glow flex items-center gap-3">
-              OASIS // OMNI-NODE
+            <h1 className="text-xl md:text-3xl font-bold tracking-widest text-white uppercase text-shadow-glow flex items-center gap-2">
+              OASIS <span className="text-[#333] hidden md:inline"> // </span> <span className="text-gray-300">OMNI-NODE</span>
             </h1>
-            <div className="text-[10px] text-gray-500 tracking-[0.4em] uppercase mt-1">Distributed Intelligence Fusion Matrix</div>
+            <div className="text-[9px] md:text-[10px] text-gray-500 tracking-[0.2em] md:tracking-[0.4em] uppercase mt-1">Distributed Intelligence Fusion Matrix</div>
           </div>
         </div>
         
-        <div className="flex flex-wrap gap-2 w-full md:w-auto">
-          <Link href="/recon" className="flex items-center justify-center gap-2 bg-[#ffaa00]/10 border border-[#ffaa00]/50 text-[#ffaa00] px-4 py-2 text-[10px] tracking-widest uppercase hover:bg-[#ffaa00] hover:text-black transition-all rounded-sm shadow-[0_0_10px_rgba(255,170,0,0.2)] flex-grow md:flex-grow-0">
-            <Terminal size={14} /> Recon Node
-          </Link>
-          <Link href="/nexus" className="flex items-center justify-center gap-2 bg-[#9933ff]/10 border border-[#9933ff]/50 text-[#9933ff] px-4 py-2 text-[10px] tracking-widest uppercase hover:bg-[#9933ff] hover:text-white transition-all rounded-sm shadow-[0_0_10px_rgba(153,51,255,0.2)] flex-grow md:flex-grow-0">
-            <Share2 size={14} /> Nexus Graph
-          </Link>
+        <div className="flex flex-col items-start md:items-end gap-2 w-full md:w-auto">
+          {/* DYNAMIC DEFCON INDICATOR */}
+          <div className={`flex items-center gap-2 px-3 py-1 border ${defconLevel <= 2 ? 'border-[#ff3366] bg-[#ff3366]/10 text-[#ff3366] animate-pulse' : 'border-[#ffaa00] bg-[#ffaa00]/10 text-[#ffaa00]'} text-[10px] tracking-widest uppercase font-bold`}>
+            <ShieldAlert size={12} /> 
+            SYSTEM STATUS: DEFCON {defconLevel}
+          </div>
+          <div className="flex flex-wrap gap-2 w-full md:w-auto">
+            <Link href="/recon" className="flex items-center justify-center gap-2 bg-[#111] border border-[#333] text-gray-300 px-3 py-1.5 text-[10px] tracking-widest uppercase hover:border-[#00ffcc] hover:text-[#00ffcc] transition-all flex-grow md:flex-grow-0">
+              <Terminal size={12} /> Recon
+            </Link>
+            <Link href="/nexus" className="flex items-center justify-center gap-2 bg-[#111] border border-[#333] text-gray-300 px-3 py-1.5 text-[10px] tracking-widest uppercase hover:border-[#9933ff] hover:text-[#9933ff] transition-all flex-grow md:flex-grow-0">
+              <Share2 size={12} /> Nexus
+            </Link>
+          </div>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow z-0">
+      {/* RESPONSIVE GRID: Orders change based on screen size so Globe is always at the top on Mobile */}
+      <div className="flex flex-col lg:grid lg:grid-cols-12 gap-4 flex-grow z-0 pb-16">
         
-        {/* LEFT FLANK */}
-        <div className="col-span-1 lg:col-span-3 flex flex-col gap-6">
-          <div className="border border-[#222] bg-[#050505] p-4 relative flex flex-col min-h-[300px]">
-            <div className="absolute top-0 left-0 w-full h-0.5 bg-[#ff3366]"></div>
-            <h2 className="text-[#555] text-[12px] font-bold uppercase mb-4 flex items-center gap-2">
-              <RadarIcon size={14} className="text-[#ff3366]" /> Global Threat Matrix
-            </h2>
-            <div className="flex-grow w-full h-full -ml-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="65%" data={threatMatrix}>
-                  <PolarGrid stroke="#333" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#888', fontSize: 10 }} />
-                  <Radar name="Threat Level" dataKey="A" stroke="#ff3366" fill="#ff3366" fillOpacity={0.3} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className="border border-[#222] bg-[#050505] p-4 relative flex flex-col h-[400px]">
-            <div className="absolute top-0 left-0 w-full h-0.5 bg-[#ffaa00]"></div>
-            <h2 className="text-[#555] text-[12px] font-bold uppercase mb-4 flex items-center gap-2 flex-none">
-              <Terminal size={14} className="text-[#ffaa00]" /> LIVE_CVE_INTERCEPT
-            </h2>
-            <div className="overflow-y-auto custom-scrollbar pr-2 flex-grow">
-              {cveLogs.map((repo, i) => (
-                <div key={i} className="mb-4 border-b border-[#111] pb-3 last:border-0">
-                  <div className="text-[#ffaa00] text-[11px] font-bold break-all">[{repo.name.toUpperCase()}]</div>
-                  <div className="text-gray-400 text-[10px] mt-2 leading-tight tracking-tight">
-                    {repo.description ? repo.description : 'NO_PAYLOAD_DESCRIPTION_PROVIDED'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* CENTER COLUMN: UPGRADED 3D WEBGL GLOBE */}
-        <div className="col-span-1 lg:col-span-6 border border-[#222] bg-[#020202] relative flex flex-col min-h-[500px] lg:min-h-[700px] shadow-[inset_0_0_80px_rgba(0,0,0,0.9)] rounded-sm" ref={globeContainerRef}>
-          <div className="absolute top-4 left-4 flex items-center gap-2 z-10 bg-black/80 p-2 border border-[#333] backdrop-blur-sm">
-            <Crosshair size={16} className={osintTarget ? "text-[#ffaa00] animate-pulse" : "text-[#555]"} />
-            <span className={`text-xs uppercase tracking-widest font-bold ${osintTarget ? "text-[#ffaa00]" : "text-[#555]"}`}>
-              {osintTarget ? `SAT_LOCK: ${osintTarget.domain || osintTarget.ip}` : 'STOCHASTIC THREAT SIMULATOR // ACTIVE SCAN'}
+        {/* CENTER COLUMN: 3D WEBGL GLOBE (ORDER 1 ON MOBILE) */}
+        <div className="lg:col-span-6 border border-[#222] bg-[#020202] relative flex flex-col h-[45vh] lg:h-auto lg:min-h-[700px] shadow-[inset_0_0_50px_rgba(0,0,0,0.9)] rounded-sm order-1 lg:order-2" ref={globeContainerRef}>
+          <div className="absolute top-2 left-2 md:top-4 md:left-4 flex items-center gap-2 z-10 bg-black/80 p-1.5 md:p-2 border border-[#333] backdrop-blur-sm">
+            <Crosshair size={14} className={osintTarget ? "text-[#00ffcc] animate-pulse" : "text-[#555]"} />
+            <span className={`text-[10px] md:text-xs uppercase tracking-widest font-bold ${osintTarget ? "text-[#00ffcc]" : "text-[#555]"}`}>
+              {osintTarget ? `SAT_LOCK: ${osintTarget.ip}` : 'KINETIC TOPOGRAPHY'}
             </span>
           </div>
           
@@ -255,36 +209,69 @@ export default function Dashboard() {
                 ref={globeRef}
                 width={dimensions.width}
                 height={dimensions.height}
-                // High-fidelity topographical earth maps
-                globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
-                bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
+                globeImageUrl="//unpkg.com/three-globe/example/img/earth-dark.jpg"
                 backgroundColor="rgba(0,0,0,0)"
                 arcsData={arcsData}
                 arcColor="color"
                 arcDashLength={0.4}
                 arcDashGap={0.2}
-                arcDashInitialGap={() => Math.random()}
-                arcDashAnimateTime={1200}
-                arcStroke={0.8}
+                arcDashAnimateTime={isMobile ? 2500 : 1500}
+                arcStroke={isMobile ? 0.8 : 0.5} 
                 pointsData={pointsData}
                 pointColor="color"
-                pointAltitude={0.15}
+                pointAltitude={0.1}
                 pointRadius="size"
                 pointsMerge={false}
                 atmosphereColor="#00ffcc"
-                atmosphereAltitude={0.15}
+                atmosphereAltitude={isMobile ? 0.1 : 0.15}
               />
             )}
           </div>
         </div>
 
-        {/* RIGHT FLANK */}
-        <div className="col-span-1 lg:col-span-3 flex flex-col gap-6">
-          <div className="border border-[#222] bg-[#050505] p-4 relative flex flex-col min-h-[300px]">
+        {/* LEFT FLANK (ORDER 2 ON MOBILE) */}
+        <div className="lg:col-span-3 flex flex-col gap-4 order-2 lg:order-1">
+          <div className="border border-[#222] bg-[#050505] p-3 md:p-4 relative flex flex-col min-h-[250px] md:min-h-[300px]">
+            <div className="absolute top-0 left-0 w-full h-0.5 bg-[#ff3366]"></div>
+            <h2 className="text-[#555] text-[10px] md:text-[12px] font-bold uppercase mb-2 flex items-center gap-2">
+              <RadarIcon size={12} className="text-[#ff3366]" /> Global Threat Matrix
+            </h2>
+            <div className="flex-grow w-full h-full -ml-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius={isMobile ? "55%" : "65%"} data={threatMatrix}>
+                  <PolarGrid stroke="#222" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#666', fontSize: isMobile ? 8 : 10 }} />
+                  <Radar name="Threat Level" dataKey="A" stroke="#ff3366" fill="#ff3366" fillOpacity={0.2} isAnimationActive={false} />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="border border-[#222] bg-[#050505] p-3 md:p-4 relative flex flex-col h-[300px] md:h-[400px]">
+            <div className="absolute top-0 left-0 w-full h-0.5 bg-[#ffaa00]"></div>
+            <h2 className="text-[#555] text-[10px] md:text-[12px] font-bold uppercase mb-3 flex items-center gap-2 flex-none">
+              <Terminal size={12} className="text-[#ffaa00]" /> LIVE_CVE_INTERCEPT
+            </h2>
+            <div className="overflow-y-auto custom-scrollbar pr-2 flex-grow">
+              {cveLogs.map((repo, i) => (
+                <div key={i} className="mb-3 border-b border-[#111] pb-2 last:border-0">
+                  <div className="text-[#ffaa00] text-[10px] font-bold break-all">[{repo.name.toUpperCase()}]</div>
+                  <div className="text-gray-400 text-[9px] mt-1 leading-tight tracking-tight">
+                    {repo.description ? repo.description : 'NO_PAYLOAD_DESCRIPTION_PROVIDED'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT FLANK (ORDER 3 ON MOBILE) */}
+        <div className="lg:col-span-3 flex flex-col gap-4 order-3">
+          <div className="border border-[#222] bg-[#050505] p-3 md:p-4 relative flex flex-col min-h-[250px] md:min-h-[300px]">
             <div className="absolute top-0 left-0 w-full h-0.5 bg-[#00ffcc]"></div>
-            <h2 className="text-[#555] text-[12px] font-bold uppercase mb-4 flex justify-between items-center">
-              <span className="flex items-center gap-2"><Activity size={14} className="text-[#00ffcc]" /> FININT: BTC</span>
-              <span className="text-white text-base font-light">${currentBtc.toFixed(2)}</span>
+            <h2 className="text-[#555] text-[10px] md:text-[12px] font-bold uppercase mb-2 flex justify-between items-center">
+              <span className="flex items-center gap-2"><Activity size={12} className="text-[#00ffcc]" /> FININT: BTC</span>
+              <span className="text-white text-sm md:text-base font-light">${currentBtc.toFixed(2)}</span>
             </h2>
             <div className="flex-grow w-full h-full -ml-4">
                <ResponsiveContainer width="100%" height="100%">
@@ -302,53 +289,44 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="border border-[#222] bg-[#050505] p-4 relative flex flex-col min-h-[400px]">
-             <div className={`absolute top-0 left-0 w-full h-0.5 ${osintTarget ? 'bg-[#ffaa00]' : 'bg-gray-600'}`}></div>
-             <h2 className={`text-[12px] font-bold uppercase mb-6 flex items-center gap-2 flex-none ${osintTarget ? 'text-[#ffaa00]' : 'text-[#555]'}`}>
-              {osintTarget ? <Target size={14} className="animate-pulse" /> : <Cpu size={14} />} 
+          <div className="border border-[#222] bg-[#050505] p-3 md:p-4 relative flex flex-col min-h-[300px] md:min-h-[400px]">
+             <div className={`absolute top-0 left-0 w-full h-0.5 ${osintTarget ? 'bg-[#00ffcc]' : 'bg-gray-600'}`}></div>
+             <h2 className={`text-[10px] md:text-[12px] font-bold uppercase mb-4 flex items-center gap-2 flex-none ${osintTarget ? 'text-[#00ffcc]' : 'text-[#555]'}`}>
+              {osintTarget ? <Target size={12} className="animate-pulse" /> : <Cpu size={12} />} 
               {osintTarget ? 'OSINT_TARGET_LOCKED' : 'SYSTEM_DIAGNOSTICS'}
             </h2>
             
             <div className="flex-grow">
               {osintTarget ? (
-                <div className="space-y-6">
-                  <div className="text-[#ffaa00] text-xl font-bold border-b border-[#333] pb-3 break-all">
+                <div className="space-y-4">
+                  <div className="text-[#00ffcc] text-lg font-bold border-b border-[#333] pb-2 break-all">
                     {osintTarget.ip}
                   </div>
-                  
-                  {osintTarget.domain && (
-                    <div className="text-gray-400 text-xs uppercase tracking-widest border border-[#222] p-2 bg-[#111] break-all">
-                      DOMAIN: {osintTarget.domain}
-                    </div>
-                  )}
-
-                  <div className="bg-[#111] p-3 border border-[#222]">
-                    <div className="text-[#555] text-[10px] uppercase tracking-widest mb-2 flex items-center gap-2"><AlertTriangle size={12}/> Network Topology</div>
-                    <div className="text-gray-300 text-sm truncate" title={osintTarget.isp}>{osintTarget.isp}</div>
+                  <div className="bg-[#111] p-2 md:p-3 border border-[#222]">
+                    <div className="text-[#555] text-[9px] uppercase tracking-widest mb-1 flex items-center gap-2"><AlertTriangle size={10}/> Network Topology</div>
+                    <div className="text-gray-300 text-xs truncate" title={osintTarget.isp}>{osintTarget.isp}</div>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-3 text-[10px] tracking-wider text-gray-400">
-                    <div className="flex flex-col bg-[#111] p-3 border border-[#222]"><span className="text-[#555] mb-1">CITY</span><span className="text-white text-sm truncate">{osintTarget.city}</span></div>
-                    <div className="flex flex-col bg-[#111] p-3 border border-[#222]"><span className="text-[#555] mb-1">COUNTRY</span><span className="text-white text-sm">{osintTarget.country}</span></div>
+                  <div className="grid grid-cols-2 gap-2 text-[9px] tracking-wider text-gray-400">
+                    <div className="flex flex-col bg-[#111] p-2 border border-[#222]"><span className="text-[#555] mb-1">CITY</span><span className="text-white text-xs truncate">{osintTarget.city}</span></div>
+                    <div className="flex flex-col bg-[#111] p-2 border border-[#222]"><span className="text-[#555] mb-1">COUNTRY</span><span className="text-white text-xs">{osintTarget.country}</span></div>
                   </div>
-                  
-                  <div className="space-y-3 pt-4 border-t border-[#222]">
-                    <div className="flex justify-between text-[11px]"><span className="text-[#555]">LATITUDE:</span><span className="text-white font-mono">{osintTarget.lat.toFixed(5)}</span></div>
-                    <div className="flex justify-between text-[11px]"><span className="text-[#555]">LONGITUDE:</span><span className="text-white font-mono">{osintTarget.lng.toFixed(5)}</span></div>
-                    <div className="flex justify-between text-[11px] pt-2"><span className="text-[#555]">STATUS:</span><span className="text-[#ffaa00] font-bold animate-pulse">ACTIVE TRACKING</span></div>
+                  <div className="space-y-2 pt-3 border-t border-[#222]">
+                    <div className="flex justify-between text-[10px]"><span className="text-[#555]">LATITUDE:</span><span className="text-white font-mono">{osintTarget.lat.toFixed(5)}</span></div>
+                    <div className="flex justify-between text-[10px]"><span className="text-[#555]">LONGITUDE:</span><span className="text-white font-mono">{osintTarget.lng.toFixed(5)}</span></div>
+                    <div className="flex justify-between text-[10px] pt-1"><span className="text-[#555]">STATUS:</span><span className="text-[#00ffcc] font-bold animate-pulse">ACTIVE TRACKING</span></div>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-6 flex flex-col justify-center mt-8">
+                <div className="space-y-6 flex flex-col justify-center mt-6">
                   <div>
-                    <div className="flex justify-between text-[10px] text-gray-500 mb-2"><span>MEMORY_HEAP</span><span>84%</span></div>
+                    <div className="flex justify-between text-[9px] md:text-[10px] text-gray-500 mb-2"><span>MEMORY_HEAP</span><span>84%</span></div>
                     <div className="w-full bg-[#111] h-1.5 rounded-none"><div className="bg-[#ffaa00] h-full w-[84%]"></div></div>
                   </div>
                   <div>
-                    <div className="flex justify-between text-[10px] text-gray-500 mb-2"><span>SENSOR_ARRAY</span><span>AWAITING KERNEL INPUT</span></div>
+                    <div className="flex justify-between text-[9px] md:text-[10px] text-gray-500 mb-2"><span>SENSOR_ARRAY</span><span>AWAITING KERNEL INPUT</span></div>
                     <div className="w-full bg-[#111] h-1.5 rounded-none"><div className="bg-gray-700 h-full w-[100%]"></div></div>
                   </div>
-                  <div className="text-[10px] text-center text-gray-600 mt-8 animate-pulse border border-[#222] p-4 bg-[#111]">USE THE KERNEL TERMINAL TO INITIATE A TARGET LOCK</div>
+                  <div className="text-[9px] text-center text-gray-600 mt-6 animate-pulse border border-[#222] p-3 bg-[#111]">USE THE KERNEL TERMINAL TO INITIATE A TARGET LOCK</div>
                 </div>
               )}
             </div>
@@ -358,7 +336,7 @@ export default function Dashboard() {
 
       <style dangerouslySetInnerHTML={{__html: `
         .text-shadow-glow { text-shadow: 0 0 10px rgba(0, 255, 204, 0.3); }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555; }
@@ -366,7 +344,7 @@ export default function Dashboard() {
         .crt-overlay::before {
           content: " ";
           display: block;
-          position: fixed; 
+          position: fixed;
           top: 0; left: 0; bottom: 0; right: 0;
           background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
           background-size: 100% 4px;
