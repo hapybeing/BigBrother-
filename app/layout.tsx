@@ -1,5 +1,5 @@
 import './globals.css'
-import TerminalOverlay from './TerminalOverlay' // Injecting the Client Component
+import TerminalOverlay from './TerminalOverlay'
 
 export const metadata = {
   title: 'OASIS // Global Node',
@@ -13,11 +13,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-[#050505] text-[#e5e5e5] font-mono antialiased overflow-hidden">
-        {/* Main Application Content */}
+      {/* Removed 'overflow-hidden'. 
+        The body is now allowed to scroll naturally on tablets. 
+      */}
+      <body className="bg-[#020202] text-[#e5e5e5] font-mono antialiased overflow-x-hidden">
         {children}
-        
-        {/* The Persistent Global Terminal System */}
         <TerminalOverlay />
       </body>
     </html>
